@@ -11,8 +11,6 @@ import io
 import base64
 import plotly.express as px
 import plotly.graph_objects as go
-from streamlit_option_menu import option_menu
-from chatbot import add_chatbot_to_page
 
 # Page configuration
 st.set_page_config(
@@ -295,6 +293,162 @@ def load_css():
         padding: 20px;
         box-shadow: 0 4px 20px rgba(0,0,0,0.2);
     }
+    
+    /* Chatbot styling */
+    .chat-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 350px;
+        height: 500px;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 5px 25px rgba(0,0,0,0.2);
+        display: flex;
+        flex-direction: column;
+        z-index: 1000;
+        transition: all 0.3s ease;
+    }
+    
+    .chat-header {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        color: white;
+        padding: 15px;
+        border-radius: 10px 10px 0 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .chat-header h4 {
+        margin: 0;
+        font-size: 16px;
+    }
+    
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 15px;
+        background: #f8f9fa;
+    }
+    
+    .message {
+        margin-bottom: 15px;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .user-message {
+        align-items: flex-end;
+    }
+    
+    .bot-message {
+        align-items: flex-start;
+    }
+    
+    .message-bubble {
+        max-width: 80%;
+        padding: 10px 15px;
+        border-radius: 15px;
+        font-size: 14px;
+        word-wrap: break-word;
+    }
+    
+    .user-message .message-bubble {
+        background: #1e3c72;
+        color: white;
+        border-bottom-right-radius: 5px;
+    }
+    
+    .bot-message .message-bubble {
+        background: white;
+        color: #333;
+        border-bottom-left-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .message-time {
+        font-size: 11px;
+        color: #999;
+        margin-top: 5px;
+    }
+    
+    .chat-input-container {
+        padding: 15px;
+        background: white;
+        border-top: 1px solid #dee2e6;
+        border-radius: 0 0 10px 10px;
+        display: flex;
+        gap: 10px;
+    }
+    
+    .chat-input {
+        flex: 1;
+        padding: 10px;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        outline: none;
+        font-size: 14px;
+    }
+    
+    .chat-input:focus {
+        border-color: #1e3c72;
+    }
+    
+    .chat-send-btn {
+        background: #1e3c72;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        padding: 10px 20px;
+        cursor: pointer;
+        transition: background 0.3s ease;
+    }
+    
+    .chat-send-btn:hover {
+        background: #2a5298;
+    }
+    
+    .chat-toggle {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: #1e3c72;
+        color: white;
+        border: none;
+        border-radius: 50px;
+        padding: 15px 25px;
+        cursor: pointer;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        z-index: 999;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 16px;
+        transition: all 0.3s ease;
+    }
+    
+    .chat-toggle:hover {
+        background: #2a5298;
+        transform: scale(1.05);
+    }
+    
+    .chat-toggle.closed {
+        right: -100px;
+    }
+    
+    .close-chat {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 20px;
+        cursor: pointer;
+        padding: 0 5px;
+    }
+    
+    .close-chat:hover {
+        opacity: 0.8;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -352,6 +506,13 @@ def init_session_state():
         st.session_state.monthly_reports = generate_monthly_reports()
     if 'quick_action_modal' not in st.session_state:
         st.session_state.quick_action_modal = None
+    # Chatbot session state
+    if 'chat_messages' not in st.session_state:
+        st.session_state.chat_messages = [
+            {"role": "bot", "content": "Hello! I'm your Cantilan-eCivil virtual assistant. How can I help you today?", "time": datetime.now().strftime("%H:%M")}
+        ]
+    if 'chat_open' not in st.session_state:
+        st.session_state.chat_open = False
 
 # Generate mock data functions
 def generate_mock_validated_documents():
@@ -506,6 +667,108 @@ ADMIN_CREDENTIALS = {
     'admin@cantilan.gov.ph': hash_password('admin123')
 }
 
+# Chatbot function
+def add_chatbot_to_page():
+    # Chat toggle button
+    if not st.session_state.chat_open:
+        if st.button("💬 Chat with Assistant", key="chat_toggle", use_container_width=True):
+            st.session_state.chat_open = True
+            st.rerun()
+    
+    # Chat window
+    if st.session_state.chat_open:
+        st.markdown("""
+        <div class="chat-container">
+            <div class="chat-header">
+                <h4>💬 Cantilan-eCivil Assistant</h4>
+                <button class="close-chat" onclick="toggleChat()">×</button>
+            </div>
+            <div class="chat-messages" id="chat-messages">
+        """, unsafe_allow_html=True)
+        
+        # Display messages
+        for msg in st.session_state.chat_messages:
+            if msg["role"] == "user":
+                st.markdown(f"""
+                <div class="message user-message">
+                    <div class="message-bubble">{msg['content']}</div>
+                    <div class="message-time">{msg['time']}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div class="message bot-message">
+                    <div class="message-bubble">{msg['content']}</div>
+                    <div class="message-time">{msg['time']}</div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        # Chat input
+        with st.form(key="chat_form"):
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                user_input = st.text_input("Type your message...", key="chat_input", label_visibility="collapsed")
+            with col2:
+                send = st.form_submit_button("Send", use_container_width=True)
+            
+            if send and user_input:
+                # Add user message
+                st.session_state.chat_messages.append({
+                    "role": "user",
+                    "content": user_input,
+                    "time": datetime.now().strftime("%H:%M")
+                })
+                
+                # Generate bot response
+                bot_response = generate_chatbot_response(user_input)
+                st.session_state.chat_messages.append({
+                    "role": "bot",
+                    "content": bot_response,
+                    "time": datetime.now().strftime("%H:%M")
+                })
+                
+                st.rerun()
+        
+        # Close button for chat
+        if st.button("Close Chat", key="close_chat"):
+            st.session_state.chat_open = False
+            st.rerun()
+
+def generate_chatbot_response(user_input):
+    """Generate chatbot response based on user input"""
+    user_input_lower = user_input.lower()
+    
+    # FAQ responses
+    responses = {
+        "hello": "Hello! How can I assist you with your government services today?",
+        "hi": "Hi there! I'm here to help you with any questions about our services.",
+        "help": "I can help you with:\n- Service applications\n- Document requirements\n- Processing times\n- Payment methods\n- Tracking your application\n- Office locations\n- Contact information",
+        "requirements": "Document requirements vary by service. Common requirements include:\n- Valid ID\n- Proof of residency\n- Birth certificate\n- Application form\nWhich service are you interested in?",
+        "payment": "We accept:\n- Cash (pay at LGU office)\n- E-Wallet (GCash, Maya)\n- Online banking\n- Credit/Debit cards",
+        "tracking": "You can track your application status by logging into your account and viewing your dashboard. You'll also receive SMS notifications.",
+        "processing time": "Processing times vary by service:\n- Barangay Clearance: 1 day\n- Birth Certificate: 3-5 days\n- Business Permit: 7-10 days\n- Police Clearance: 1-2 days",
+        "contact": "You can contact us at:\n📞 (123) 456-7890\n📧 support@cantilan.gov.ph\n🏢 Municipal Hall, Cantilan, Surigao del Sur",
+        "location": "Our office is located at the Municipal Hall, Cantilan, Surigao del Sur. Office hours: Monday-Friday, 8:00 AM - 5:00 PM.",
+        "barangay clearance": "Barangay Clearance costs ₱50 and takes 1 day to process. Requirements:\n- Valid ID\n- Proof of residency\n- Community tax certificate",
+        "birth certificate": "Birth Certificate costs ₱155 (PSA) or ₱75 (Local). Processing takes 3-5 days. Requirements:\n- Valid ID\n- Completed application form",
+        "business permit": "Business Permit costs ₱500-2000 depending on business type. Processing takes 7-10 days. Requirements:\n- Barangay Clearance\n- Tax clearance\n- DTI/SEC registration",
+        "police clearance": "Police Clearance costs ₱150 and takes 1-2 days. Requirements:\n- Valid ID\n- Barangay Clearance\n- 2x2 ID picture",
+        "thanks": "You're welcome! Is there anything else I can help you with?",
+        "thank you": "You're welcome! Is there anything else I can help you with?",
+        "bye": "Goodbye! Feel free to chat again if you need assistance. Have a great day!",
+        "goodbye": "Goodbye! Feel free to chat again if you need assistance. Have a great day!"
+    }
+    
+    # Check for keywords
+    for key, response in responses.items():
+        if key in user_input_lower:
+            return response
+    
+    # Default response
+    return "I'm not sure about that. Would you like to speak with a human representative? You can contact us at (123) 456-7890 or email support@cantilan.gov.ph"
+
 # Main app structure
 def main():
     load_css()
@@ -614,12 +877,20 @@ def main():
     else:
         if st.session_state.page == 'dashboard':
             show_dashboard()
+            st.markdown("---")
+            add_chatbot_to_page()
         elif st.session_state.page == 'profile':
             show_profile()
+            st.markdown("---")
+            add_chatbot_to_page()
         elif st.session_state.page == 'lgu':
             show_lgu_services()
+            st.markdown("---")
+            add_chatbot_to_page()
         elif st.session_state.page == 'barangay':
             show_barangay_services()
+            st.markdown("---")
+            add_chatbot_to_page()
 
 def show_login_page():
     st.title("🏛️ Cantilan-eCivil")
@@ -712,6 +983,64 @@ def show_login_page():
                 st.rerun()
             else:
                 st.error("Invalid admin credentials")
+
+def show_dashboard():
+    st.title("Dashboard")
+    
+    # Get user-specific applications (filter by user)
+    user_apps = [app for app in st.session_state.applications if app.get('user_email') == st.session_state.username]
+    
+    # Calculate statistics
+    active_count = len([app for app in user_apps if app['status'] in ['Processing', 'Pending']])
+    completed_count = len([app for app in user_apps if app['status'] == 'Approved'])
+    total_count = len(user_apps)
+    
+    # Statistics cards
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown(f"""
+        <div class="dashboard-card" style="text-align:center;">
+            <h3 style="margin:0; color:#666;">Active</h3>
+            <h2 style="margin:0; color:#28a745;">{active_count}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+        <div class="dashboard-card" style="text-align:center;">
+            <h3 style="margin:0; color:#666;">Completed</h3>
+            <h2 style="margin:0; color:#28a745;">{completed_count}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(f"""
+        <div class="dashboard-card" style="text-align:center;">
+            <h3 style="margin:0; color:#666;">Total</h3>
+            <h2 style="margin:0; color:#28a745;">{total_count}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    st.subheader("Recent Applications")
+    
+    # Show recent applications or empty state
+    if user_apps:
+        recent_apps = sorted(user_apps, key=lambda x: x['date'], reverse=True)[:5]
+        for app in recent_apps:
+            status_class = f"status-{app['status'].lower()}"
+            st.markdown(f"""
+            <div class="recent-app">
+                <div style="display:flex; justify-content:space-between;">
+                    <strong>{app['type']}</strong>
+                    <span class="status-badge {status_class}">{app['status']}</span>
+                </div>
+                <div style="color:#666; font-size:12px;">Tracking: {app['tracking']}</div>
+                <div style="color:#666; font-size:12px;">{app['date']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.info("No applications yet. Start by applying for a service from the LGU or Barangay sections.")
 
 def show_profile():
     st.title("Profile")
@@ -845,6 +1174,567 @@ def show_profile():
         share_history = st.checkbox("Share application history with LGUs", value=True)
         if st.button("Save Privacy Settings", use_container_width=True):
             st.success("Privacy settings saved!")
+
+def show_lgu_services():
+    st.title("Local Government Unit Services")
+    
+    # LGU Offices and their documents data structure
+    lgu_offices = {
+        "Office of the Municipal Mayor": {
+            "icon": "👔",
+            "description": "Chief executive of the municipality",
+            "documents": [
+                {"name": "Executive Order", "fee": "Free", "processing": "3-5 days"},
+                {"name": "Certificate of Appearance", "fee": "₱50", "processing": "1 day"},
+                {"name": "Letter of Support/Endorsement", "fee": "Free", "processing": "2-3 days"},
+                {"name": "Mayor's Permit (Special)", "fee": "₱100", "processing": "2 days"}
+            ]
+        },
+        "Office of the Municipal Vice Mayor": {
+            "icon": "🗳️",
+            "description": "Presiding officer of the Sangguniang Bayan",
+            "documents": [
+                {"name": "Certificate of Appearance (Session)", "fee": "Free", "processing": "1 day"},
+                {"name": "Vice Mayor's Clearance", "fee": "₱50", "processing": "1-2 days"}
+            ]
+        },
+        "Sangguniang Bayan": {
+            "icon": "📜",
+            "description": "Municipal legislative body",
+            "documents": [
+                {"name": "Certified True Copy of Ordinance", "fee": "₱75", "processing": "2-3 days"},
+                {"name": "Certified True Copy of Resolution", "fee": "₱75", "processing": "2-3 days"},
+                {"name": "Excerpt of Minutes (Session)", "fee": "₱50", "processing": "2 days"},
+                {"name": "Legislative History", "fee": "₱100", "processing": "3-5 days"}
+            ]
+        },
+        "Municipal Civil Registrar": {
+            "icon": "📄",
+            "description": "Birth, marriage, and death records",
+            "documents": [
+                {"name": "Birth Certificate (PSA)", "fee": "₱155", "processing": "3-5 days"},
+                {"name": "Marriage Certificate (PSA)", "fee": "₱155", "processing": "3-5 days"},
+                {"name": "Death Certificate (PSA)", "fee": "₱155", "processing": "3-5 days"},
+                {"name": "CENOMAR", "fee": "₱210", "processing": "5-7 days"},
+                {"name": "Certificate of Live Birth (Local)", "fee": "₱75", "processing": "2-3 days"},
+                {"name": "Certificate of Marriage (Local)", "fee": "₱75", "processing": "2-3 days"},
+                {"name": "Certificate of Death (Local)", "fee": "₱75", "processing": "2-3 days"},
+                {"name": "Marriage License Application", "fee": "₱200", "processing": "10 days"}
+            ]
+        },
+        "Municipal Assessor's Office": {
+            "icon": "🏠",
+            "description": "Property assessment and taxation",
+            "documents": [
+                {"name": "Tax Declaration (Current)", "fee": "₱150", "processing": "3-5 days"},
+                {"name": "Tax Declaration (Historical)", "fee": "₱200", "processing": "5-7 days"},
+                {"name": "Certificate of Land Holdings", "fee": "₱100", "processing": "2-3 days"},
+                {"name": "Assessment of Real Property", "fee": "₱200", "processing": "3-5 days"},
+                {"name": "Sketch Plan/Lot Plan", "fee": "₱300", "processing": "5-7 days"}
+            ]
+        },
+        "Municipal Treasurer's Office": {
+            "icon": "💰",
+            "description": "Financial management and collections",
+            "documents": [
+                {"name": "Certificate of Tax Clearance", "fee": "₱100", "processing": "1-2 days"},
+                {"name": "Certificate of No Tax Delinquency", "fee": "₱100", "processing": "1-2 days"},
+                {"name": "Official Receipt (Duplicate)", "fee": "₱50", "processing": "1 day"},
+                {"name": "Statement of Accounts", "fee": "Free", "processing": "2-3 days"}
+            ]
+        },
+        "Municipal Budget Office": {
+            "icon": "📊",
+            "description": "Budget planning and management",
+            "documents": [
+                {"name": "Budget Execution Document", "fee": "Free", "processing": "3-5 days"},
+                {"name": "Annual Investment Program", "fee": "Free", "processing": "5-7 days"},
+                {"name": "Financial Reports", "fee": "Free", "processing": "3-5 days"}
+            ]
+        },
+        "Municipal Accounting Office": {
+            "icon": "🧾",
+            "description": "Accounting and financial reporting",
+            "documents": [
+                {"name": "Statement of Receipts & Expenditures", "fee": "Free", "processing": "3-5 days"},
+                {"name": "Trial Balance Report", "fee": "Free", "processing": "2-3 days"},
+                {"name": "Financial Statements", "fee": "Free", "processing": "5-7 days"}
+            ]
+        },
+        "Municipal Planning and Development Office": {
+            "icon": "📐",
+            "description": "Development planning and coordination",
+            "documents": [
+                {"name": "Zoning Certification", "fee": "₱200", "processing": "3-5 days"},
+                {"name": "Locational Clearance", "fee": "₱300", "processing": "5-7 days"},
+                {"name": "Development Plan Excerpt", "fee": "₱100", "processing": "2-3 days"},
+                {"name": "CLUP (Comprehensive Land Use Plan)", "fee": "₱500", "processing": "7-10 days"}
+            ]
+        },
+        "Municipal Engineering Office": {
+            "icon": "🏗️",
+            "description": "Infrastructure and construction",
+            "documents": [
+                {"name": "Building Permit", "fee": "₱1000-5000", "processing": "10-15 days"},
+                {"name": "Occupancy Permit", "fee": "₱800", "processing": "5-7 days"},
+                {"name": "Fencing Permit", "fee": "₱500", "processing": "3-5 days"},
+                {"name": "Demolition Permit", "fee": "₱1000", "processing": "5-7 days"},
+                {"name": "Electrical Permit", "fee": "₱500", "processing": "3-5 days"},
+                {"name": "Plumbing Permit", "fee": "₱500", "processing": "3-5 days"},
+                {"name": "Location Plan/Site Plan", "fee": "₱300", "processing": "3-5 days"}
+            ]
+        },
+        "Municipal Health Office": {
+            "icon": "🏥",
+            "description": "Health services and sanitation",
+            "documents": [
+                {"name": "Health Clearance", "fee": "₱100", "processing": "1-2 days"},
+                {"name": "Sanitary Permit", "fee": "₱300", "processing": "3-5 days"},
+                {"name": "Medical Certificate", "fee": "₱50", "processing": "1 day"},
+                {"name": "Dental Certificate", "fee": "₱50", "processing": "1 day"},
+                {"name": "Food Handler's Certificate", "fee": "₱200", "processing": "2-3 days"}
+            ]
+        },
+        "MSWDO (Social Welfare)": {
+            "icon": "🤝",
+            "description": "Social welfare and development",
+            "documents": [
+                {"name": "Certificate of Indigency", "fee": "Free", "processing": "1 day"},
+                {"name": "Social Case Study Report", "fee": "Free", "processing": "2-3 days"},
+                {"name": "Referral Letter", "fee": "Free", "processing": "1 day"},
+                {"name": "Assessment Report", "fee": "Free", "processing": "2-3 days"},
+                {"name": "4Ps Certification", "fee": "Free", "processing": "2 days"}
+            ]
+        },
+        "Municipal Agriculture Office": {
+            "icon": "🌾",
+            "description": "Agricultural services",
+            "documents": [
+                {"name": "Farmer's Certification", "fee": "Free", "processing": "1-2 days"},
+                {"name": "Agricultural Technician Report", "fee": "Free", "processing": "3-5 days"},
+                {"name": "Soil Analysis Report", "fee": "₱100", "processing": "5-7 days"},
+                {"name": "Livestock Transport Permit", "fee": "₱50", "processing": "1 day"}
+            ]
+        },
+        "MENRO (Environment)": {
+            "icon": "🌳",
+            "description": "Environment and natural resources",
+            "documents": [
+                {"name": "Environmental Compliance Certificate", "fee": "₱500", "processing": "7-10 days"},
+                {"name": "Tree Cutting Permit", "fee": "₱200", "processing": "3-5 days"},
+                {"name": "Waste Generator's ID", "fee": "₱100", "processing": "2-3 days"},
+                {"name": "Environmental Clearance", "fee": "₱300", "processing": "5-7 days"}
+            ]
+        },
+        "MDRRMO (Disaster Risk Reduction)": {
+            "icon": "⚠️",
+            "description": "Disaster management",
+            "documents": [
+                {"name": "Geohazard Clearance", "fee": "Free", "processing": "2-3 days"},
+                {"name": "Certificate of No Incident", "fee": "Free", "processing": "1 day"},
+                {"name": "Disaster Report Certification", "fee": "Free", "processing": "2 days"},
+                {"name": "Evacuation Center Referral", "fee": "Free", "processing": "1 day"}
+            ]
+        },
+        "Municipal Police Station": {
+            "icon": "👮",
+            "description": "Peace and order",
+            "documents": [
+                {"name": "Police Clearance", "fee": "₱150", "processing": "1-2 days"},
+                {"name": "Blotter Certificate", "fee": "₱50", "processing": "1 day"},
+                {"name": "Incident Report", "fee": "₱100", "processing": "2-3 days"},
+                {"name": "Traffic Violation Report", "fee": "₱100", "processing": "1-2 days"}
+            ]
+        },
+        "Bureau of Fire Protection": {
+            "icon": "🔥",
+            "description": "Fire safety and prevention",
+            "documents": [
+                {"name": "Fire Safety Inspection Certificate", "fee": "₱300", "processing": "3-5 days"},
+                {"name": "Fire Clearance", "fee": "₱200", "processing": "2-3 days"},
+                {"name": "Incident Report (Fire)", "fee": "Free", "processing": "2 days"}
+            ]
+        },
+        "PESO (Public Employment Service Office)": {
+            "icon": "💼",
+            "description": "Employment services",
+            "documents": [
+                {"name": "Job Seeker Registration", "fee": "Free", "processing": "1 day"},
+                {"name": "Employment Certificate", "fee": "Free", "processing": "1-2 days"},
+                {"name": "Referral Letter (Employment)", "fee": "Free", "processing": "1 day"},
+                {"name": "Training Certificate", "fee": "Free", "processing": "2-3 days"}
+            ]
+        },
+        "OSCA (Senior Citizens Office)": {
+            "icon": "👴",
+            "description": "Senior citizen affairs",
+            "documents": [
+                {"name": "Senior Citizen ID", "fee": "Free", "processing": "3-5 days"},
+                {"name": "OSCA ID", "fee": "Free", "processing": "3-5 days"},
+                {"name": "Senior Citizen Certification", "fee": "Free", "processing": "1 day"}
+            ]
+        },
+        "PDAO (Persons with Disability)": {
+            "icon": "♿",
+            "description": "PWD affairs",
+            "documents": [
+                {"name": "PWD ID", "fee": "Free", "processing": "3-5 days"},
+                {"name": "PWD Certification", "fee": "Free", "processing": "1-2 days"},
+                {"name": "Discount Privilege Letter", "fee": "Free", "processing": "1 day"}
+            ]
+        },
+        "Tourism Office": {
+            "icon": "🏖️",
+            "description": "Tourism promotion and development",
+            "documents": [
+                {"name": "Tourist Assistance Letter", "fee": "Free", "processing": "1 day"},
+                {"name": "Tour Guide Certification", "fee": "₱100", "processing": "3-5 days"},
+                {"name": "Tourism Establishment Registration", "fee": "₱200", "processing": "5-7 days"},
+                {"name": "Event Permit (Tourism-related)", "fee": "₱300", "processing": "5-7 days"}
+            ]
+        },
+        "Municipal Legal Office": {
+            "icon": "⚖️",
+            "description": "Legal services",
+            "documents": [
+                {"name": "Legal Opinion", "fee": "Free", "processing": "5-7 days"},
+                {"name": "Contract Review", "fee": "Free", "processing": "3-5 days"},
+                {"name": "Notarial Services", "fee": "₱100", "processing": "1 day"},
+                {"name": "Certified True Copy (Legal Docs)", "fee": "₱75", "processing": "1-2 days"}
+            ]
+        }
+    }
+    
+    # Search functionality
+    search_term = st.text_input("🔍 Search for offices or documents", placeholder="e.g., birth certificate, permit, clearance...")
+    
+    # Category filters
+    categories = ["All Offices", "Executive", "Legislative", "Administrative", "Civil Registry", 
+                  "Health & Social", "Engineering", "Peace & Order", "Economic", "Environment"]
+    
+    selected_category = st.selectbox("Filter by Category", categories)
+    
+    # Filter offices based on category
+    category_mapping = {
+        "Executive": ["Office of the Municipal Mayor", "Office of the Municipal Vice Mayor"],
+        "Legislative": ["Sangguniang Bayan"],
+        "Administrative": ["Municipal Assessor's Office", "Municipal Treasurer's Office", "Municipal Budget Office", 
+                          "Municipal Accounting Office", "Municipal Planning and Development Office"],
+        "Civil Registry": ["Municipal Civil Registrar"],
+        "Health & Social": ["Municipal Health Office", "MSWDO (Social Welfare)", "OSCA (Senior Citizens Office)", 
+                           "PDAO (Persons with Disability)"],
+        "Engineering": ["Municipal Engineering Office"],
+        "Peace & Order": ["Municipal Police Station", "Bureau of Fire Protection", "MDRRMO (Disaster Risk Reduction)"],
+        "Economic": ["Municipal Agriculture Office", "PESO (Public Employment Service Office)", "Tourism Office"],
+        "Environment": ["MENRO (Environment)"]
+    }
+    
+    # Display offices
+    offices_found = False
+    for office_name, office_data in lgu_offices.items():
+        # Apply category filter
+        if selected_category != "All Offices" and office_name not in category_mapping.get(selected_category, []):
+            continue
+            
+        # Apply search filter
+        if search_term:
+            search_term_lower = search_term.lower()
+            doc_matches = any(search_term_lower in doc['name'].lower() for doc in office_data['documents'])
+            office_matches = search_term_lower in office_name.lower()
+            if not (doc_matches or office_matches):
+                continue
+        
+        offices_found = True
+        with st.expander(f"{office_data['icon']} {office_name}"):
+            st.caption(office_data['description'])
+            st.markdown("---")
+            
+            # Display documents for this office
+            for doc in office_data['documents']:
+                col1, col2, col3 = st.columns([3, 1, 1])
+                with col1:
+                    st.markdown(f"**{doc['name']}**")
+                with col2:
+                    st.markdown(f"`{doc['fee']}`")
+                with col3:
+                    if st.button("Apply", key=f"{office_name}_{doc['name']}"):
+                        st.session_state['selected_service'] = doc
+                        st.session_state['selected_office'] = office_name
+                        st.session_state['service_type'] = 'lgu'
+                        show_application_form(doc['name'], office_name)
+                
+                st.caption(f"⏱️ Processing: {doc['processing']}")
+                st.markdown("---")
+    
+    if not offices_found:
+        st.info("No offices or documents match your search criteria.")
+    
+    # Quick apply section for popular documents
+    st.markdown("---")
+    st.subheader("📋 Popular Requests")
+    
+    popular_docs = [
+        ("Birth Certificate", "Municipal Civil Registrar"),
+        ("Barangay Clearance", "Barangay Hall"),
+        ("Police Clearance", "Municipal Police Station"),
+        ("Business Permit", "Municipal Engineering Office"),
+        ("Certificate of Indigency", "MSWDO (Social Welfare)")
+    ]
+    
+    cols = st.columns(5)
+    for idx, (doc_name, office) in enumerate(popular_docs):
+        with cols[idx]:
+            if st.button(f"{doc_name}\n({office})", use_container_width=True):
+                st.info(f"Please go to the {office} section above to apply for {doc_name}")
+
+def show_barangay_services():
+    st.title("Barangay Government Unit Services")
+    
+    # Residency Documents
+    st.markdown('<div class="service-header">📋 Residency Documents</div>', unsafe_allow_html=True)
+    
+    residency_services = [
+        {"name": "Barangay Clearance", "fee": "₱50", "processing": "1 day"},
+        {"name": "Certificate of Residency", "fee": "₱30", "processing": "1 day"},
+        {"name": "Certificate of Indigency", "fee": "Free", "processing": "1 day"}
+    ]
+    
+    for service in residency_services:
+        with st.container():
+            st.markdown(f"""
+            <div class="service-container">
+                <strong>{service['name']}</strong><br>
+                <span style="color:#666;">Fee: {service['fee']} | Processing: {service['processing']}</span>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button(f"Apply Now", key=f"residency_{service['name']}"):
+                st.session_state['selected_service'] = service
+                st.session_state['service_type'] = 'residency'
+                show_application_form(service['name'], "Barangay Hall")
+    
+    # Special IDs
+    st.markdown('<div class="service-header">🆔 Special IDs</div>', unsafe_allow_html=True)
+    
+    special_ids = [
+        {"name": "Senior Citizen ID", "fee": "Free", "processing": "3-5 days"},
+        {"name": "PWD ID", "fee": "Free", "processing": "3-5 days"},
+        {"name": "Solo Parent ID", "fee": "Free", "processing": "3-5 days"},
+        {"name": "Police Clearance", "fee": "₱150", "processing": "1-2 days"}
+    ]
+    
+    for service in special_ids:
+        with st.container():
+            st.markdown(f"""
+            <div class="service-container">
+                <strong>{service['name']}</strong><br>
+                <span style="color:#666;">Fee: {service['fee']} | Processing: {service['processing']}</span>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button(f"Apply Now", key=f"special_{service['name']}"):
+                st.session_state['selected_service'] = service
+                st.session_state['service_type'] = 'special'
+                show_application_form(service['name'], "Barangay Hall")
+    
+    # Assistance Programs
+    st.markdown('<div class="service-header">🤝 Assistance Programs</div>', unsafe_allow_html=True)
+    
+    assistance_programs = [
+        {"name": "Medical/Burial Assistance", "fee": "Free", "processing": "3-5 days"},
+        {"name": "4Ps Program", "fee": "Free", "processing": "7-10 days"},
+        {"name": "Financial Assistance", "fee": "Free", "processing": "5-7 days"}
+    ]
+    
+    for service in assistance_programs:
+        with st.container():
+            st.markdown(f"""
+            <div class="service-container">
+                <strong>{service['name']}</strong><br>
+                <span style="color:#666;">Fee: {service['fee']} | Processing: {service['processing']}</span>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button(f"Apply Now", key=f"assistance_{service['name']}"):
+                st.session_state['selected_service'] = service
+                st.session_state['service_type'] = 'assistance'
+                show_application_form(service['name'], "Barangay Hall")
+    
+    # Permits
+    st.markdown('<div class="service-header">📜 Permits</div>', unsafe_allow_html=True)
+    
+    permit_services = [
+        {"name": "Tricycle Franchise", "fee": "₱1000", "processing": "7-10 days"}
+    ]
+    
+    for service in permit_services:
+        with st.container():
+            st.markdown(f"""
+            <div class="service-container">
+                <strong>{service['name']}</strong><br>
+                <span style="color:#666;">Fee: {service['fee']} | Processing: {service['processing']}</span>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button(f"Apply Now", key=f"permit_{service['name']}"):
+                st.session_state['selected_service'] = service
+                st.session_state['service_type'] = 'permit'
+                show_application_form(service['name'], "Barangay Hall")
+
+def show_application_form(service_name, office_name=None):
+    st.markdown("---")
+    if office_name:
+        st.subheader(f"Application Form - {service_name}")
+        st.caption(f"Office: {office_name}")
+    else:
+        st.subheader(f"Application Form - {service_name}")
+    
+    with st.form(key=f"form_{service_name.replace(' ', '_')}"):
+        # Display office info
+        if office_name:
+            st.info(f"This application will be processed by: **{office_name}**")
+        
+        # Personal Information
+        st.write("**Personal Information**")
+        col1, col2 = st.columns(2)
+        with col1:
+            first_name = st.text_input("First Name*")
+        with col2:
+            last_name = st.text_input("Last Name*")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            birth_date = st.date_input("Date of Birth*", min_value=datetime(1900,1,1), max_value=datetime.now())
+        with col2:
+            gender = st.selectbox("Gender*", ["Male", "Female", "Other"])
+        
+        # Contact Information
+        st.write("**Contact Information**")
+        col1, col2 = st.columns(2)
+        with col1:
+            contact_no = st.text_input("Contact Number*")
+        with col2:
+            email = st.text_input("Email Address*", value=st.session_state.username if st.session_state.username else "")
+        
+        # Address
+        st.write("**Address**")
+        col1, col2 = st.columns(2)
+        with col1:
+            barangay = st.selectbox("Barangay*", [
+                "Barangay 1", "Barangay 2", "Barangay 3", "Barangay 4", 
+                "Barangay 5", "Barangay 6", "Barangay 7", "Barangay 8"
+            ])
+        with col2:
+            municipality = st.text_input("Municipality*", value="Cantilan", disabled=True)
+        
+        street = st.text_input("Street/Purok*")
+        
+        # Service Specific Fields
+        st.write("**Application Details**")
+        purpose = ""
+        if "Certificate" in service_name or "Clearance" in service_name:
+            purpose = st.text_area("Purpose of Application*")
+        
+        business_name = ""
+        business_type = ""
+        if service_name in ["Business Permit", "Building Permit"]:
+            col1, col2 = st.columns(2)
+            with col1:
+                business_name = st.text_input("Business Name*")
+            with col2:
+                business_type = st.selectbox("Business Type*", ["Sole Proprietorship", "Partnership", "Corporation", "Cooperative"])
+        
+        plate_no = ""
+        franchise_type = ""
+        if "Tricycle Franchise" in service_name:
+            col1, col2 = st.columns(2)
+            with col1:
+                plate_no = st.text_input("Plate Number*")
+            with col2:
+                franchise_type = st.selectbox("Franchise Type*", ["New", "Renewal", "Transfer"])
+        
+        # Document Upload
+        st.write("**Required Documents**")
+        uploaded_files = st.file_uploader("Upload supporting documents", 
+                                          accept_multiple_files=True,
+                                          type=['pdf', 'jpg', 'jpeg', 'png'])
+        
+        # Payment Method
+        st.write("**Payment Method**")
+        payment_method = st.radio("Select Payment Method", 
+                                  ["E-Wallet (GCash, Maya)", "Cash (Pay at LGU)", "Online Banking"],
+                                  horizontal=True)
+        
+        # Terms and Conditions
+        agree = st.checkbox("I certify that all information provided is true and correct*")
+        
+        # Submit button
+        submitted = st.form_submit_button("Submit Application", use_container_width=True)
+        
+        if submitted:
+            if agree and first_name and last_name and contact_no and email:
+                tracking_no = f"{service_name[:2].upper()}-{datetime.now().strftime('%Y%m%d')}-{random.randint(1000,9999)}"
+                
+                # Create application record
+                new_app = {
+                    "user_email": st.session_state.username,
+                    "type": service_name,
+                    "office": office_name if office_name else "N/A",
+                    "date": datetime.now().strftime("%Y-%m-%d"),
+                    "status": "Pending",
+                    "tracking": tracking_no,
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "contact_no": contact_no,
+                    "email": email,
+                    "barangay": barangay,
+                    "purpose": purpose if purpose else "N/A",
+                    "payment_method": payment_method,
+                    "payment_status": "Pending"
+                }
+                
+                # Add service-specific fields
+                if business_name:
+                    new_app['business_name'] = business_name
+                if business_type:
+                    new_app['business_type'] = business_type
+                if plate_no:
+                    new_app['plate_no'] = plate_no
+                if franchise_type:
+                    new_app['franchise_type'] = franchise_type
+                
+                st.session_state.applications.append(new_app)
+                
+                # Create payment record
+                payment_id = f"PAY{random.randint(1000,9999)}"
+                
+                # Extract fee amount (remove ₱ and handle ranges)
+                fee_text = st.session_state['selected_service']['fee'] if 'selected_service' in st.session_state else "₱150"
+                try:
+                    if "-" in fee_text:
+                        amount = int(fee_text.split('-')[0].replace('₱', '').strip())
+                    elif "Free" in fee_text:
+                        amount = 0
+                    else:
+                        amount = int(fee_text.replace('₱', '').strip())
+                except:
+                    amount = 150  # default amount
+                
+                st.session_state.payments.append({
+                    "id": payment_id,
+                    "tracking": tracking_no,
+                    "amount": amount,
+                    "method": payment_method,
+                    "status": "Pending Verification" if "Cash" in payment_method else "Verified",
+                    "date": datetime.now().strftime("%Y-%m-%d")
+                })
+                
+                st.success(f"✅ Application submitted successfully!")
+                st.info(f"📱 Tracking Number: **{tracking_no}**")
+                st.info(f"🏢 Processing Office: **{office_name if office_name else 'LGU Office'}**")
+                st.info("📨 You will receive SMS notifications for updates on your application.")
+                
+                # Add a button to go back to services
+                if st.button("Apply for Another Service", key="another_service"):
+                    st.rerun()
+            else:
+                st.error("Please fill in all required fields and agree to terms and conditions")
 
 def show_staff_dashboard():
     staff_info = st.session_state.staff_info
@@ -1431,627 +2321,7 @@ def show_view_reports_modal(department):
         
         st.markdown('</div>', unsafe_allow_html=True)
 
-# [Previous LGU and Barangay service functions remain the same]
-def show_lgu_services():
-    st.title("Local Government Unit Services")
-    
-    # LGU Offices and their documents data structure
-    lgu_offices = {
-        "Office of the Municipal Mayor": {
-            "icon": "👔",
-            "description": "Chief executive of the municipality",
-            "documents": [
-                {"name": "Executive Order", "fee": "Free", "processing": "3-5 days"},
-                {"name": "Certificate of Appearance", "fee": "₱50", "processing": "1 day"},
-                {"name": "Letter of Support/Endorsement", "fee": "Free", "processing": "2-3 days"},
-                {"name": "Mayor's Permit (Special)", "fee": "₱100", "processing": "2 days"}
-            ]
-        },
-        "Office of the Municipal Vice Mayor": {
-            "icon": "🗳️",
-            "description": "Presiding officer of the Sangguniang Bayan",
-            "documents": [
-                {"name": "Certificate of Appearance (Session)", "fee": "Free", "processing": "1 day"},
-                {"name": "Vice Mayor's Clearance", "fee": "₱50", "processing": "1-2 days"}
-            ]
-        },
-        "Sangguniang Bayan": {
-            "icon": "📜",
-            "description": "Municipal legislative body",
-            "documents": [
-                {"name": "Certified True Copy of Ordinance", "fee": "₱75", "processing": "2-3 days"},
-                {"name": "Certified True Copy of Resolution", "fee": "₱75", "processing": "2-3 days"},
-                {"name": "Excerpt of Minutes (Session)", "fee": "₱50", "processing": "2 days"},
-                {"name": "Legislative History", "fee": "₱100", "processing": "3-5 days"}
-            ]
-        },
-        "Municipal Civil Registrar": {
-            "icon": "📄",
-            "description": "Birth, marriage, and death records",
-            "documents": [
-                {"name": "Birth Certificate (PSA)", "fee": "₱155", "processing": "3-5 days"},
-                {"name": "Marriage Certificate (PSA)", "fee": "₱155", "processing": "3-5 days"},
-                {"name": "Death Certificate (PSA)", "fee": "₱155", "processing": "3-5 days"},
-                {"name": "CENOMAR", "fee": "₱210", "processing": "5-7 days"},
-                {"name": "Certificate of Live Birth (Local)", "fee": "₱75", "processing": "2-3 days"},
-                {"name": "Certificate of Marriage (Local)", "fee": "₱75", "processing": "2-3 days"},
-                {"name": "Certificate of Death (Local)", "fee": "₱75", "processing": "2-3 days"},
-                {"name": "Marriage License Application", "fee": "₱200", "processing": "10 days"}
-            ]
-        },
-        "Municipal Assessor's Office": {
-            "icon": "🏠",
-            "description": "Property assessment and taxation",
-            "documents": [
-                {"name": "Tax Declaration (Current)", "fee": "₱150", "processing": "3-5 days"},
-                {"name": "Tax Declaration (Historical)", "fee": "₱200", "processing": "5-7 days"},
-                {"name": "Certificate of Land Holdings", "fee": "₱100", "processing": "2-3 days"},
-                {"name": "Assessment of Real Property", "fee": "₱200", "processing": "3-5 days"},
-                {"name": "Sketch Plan/Lot Plan", "fee": "₱300", "processing": "5-7 days"}
-            ]
-        },
-        "Municipal Treasurer's Office": {
-            "icon": "💰",
-            "description": "Financial management and collections",
-            "documents": [
-                {"name": "Certificate of Tax Clearance", "fee": "₱100", "processing": "1-2 days"},
-                {"name": "Certificate of No Tax Delinquency", "fee": "₱100", "processing": "1-2 days"},
-                {"name": "Official Receipt (Duplicate)", "fee": "₱50", "processing": "1 day"},
-                {"name": "Statement of Accounts", "fee": "Free", "processing": "2-3 days"}
-            ]
-        },
-        "Municipal Budget Office": {
-            "icon": "📊",
-            "description": "Budget planning and management",
-            "documents": [
-                {"name": "Budget Execution Document", "fee": "Free", "processing": "3-5 days"},
-                {"name": "Annual Investment Program", "fee": "Free", "processing": "5-7 days"},
-                {"name": "Financial Reports", "fee": "Free", "processing": "3-5 days"}
-            ]
-        },
-        "Municipal Accounting Office": {
-            "icon": "🧾",
-            "description": "Accounting and financial reporting",
-            "documents": [
-                {"name": "Statement of Receipts & Expenditures", "fee": "Free", "processing": "3-5 days"},
-                {"name": "Trial Balance Report", "fee": "Free", "processing": "2-3 days"},
-                {"name": "Financial Statements", "fee": "Free", "processing": "5-7 days"}
-            ]
-        },
-        "Municipal Planning and Development Office": {
-            "icon": "📐",
-            "description": "Development planning and coordination",
-            "documents": [
-                {"name": "Zoning Certification", "fee": "₱200", "processing": "3-5 days"},
-                {"name": "Locational Clearance", "fee": "₱300", "processing": "5-7 days"},
-                {"name": "Development Plan Excerpt", "fee": "₱100", "processing": "2-3 days"},
-                {"name": "CLUP (Comprehensive Land Use Plan)", "fee": "₱500", "processing": "7-10 days"}
-            ]
-        },
-        "Municipal Engineering Office": {
-            "icon": "🏗️",
-            "description": "Infrastructure and construction",
-            "documents": [
-                {"name": "Building Permit", "fee": "₱1000-5000", "processing": "10-15 days"},
-                {"name": "Occupancy Permit", "fee": "₱800", "processing": "5-7 days"},
-                {"name": "Fencing Permit", "fee": "₱500", "processing": "3-5 days"},
-                {"name": "Demolition Permit", "fee": "₱1000", "processing": "5-7 days"},
-                {"name": "Electrical Permit", "fee": "₱500", "processing": "3-5 days"},
-                {"name": "Plumbing Permit", "fee": "₱500", "processing": "3-5 days"},
-                {"name": "Location Plan/Site Plan", "fee": "₱300", "processing": "3-5 days"}
-            ]
-        },
-        "Municipal Health Office": {
-            "icon": "🏥",
-            "description": "Health services and sanitation",
-            "documents": [
-                {"name": "Health Clearance", "fee": "₱100", "processing": "1-2 days"},
-                {"name": "Sanitary Permit", "fee": "₱300", "processing": "3-5 days"},
-                {"name": "Medical Certificate", "fee": "₱50", "processing": "1 day"},
-                {"name": "Dental Certificate", "fee": "₱50", "processing": "1 day"},
-                {"name": "Food Handler's Certificate", "fee": "₱200", "processing": "2-3 days"}
-            ]
-        },
-        "MSWDO (Social Welfare)": {
-            "icon": "🤝",
-            "description": "Social welfare and development",
-            "documents": [
-                {"name": "Certificate of Indigency", "fee": "Free", "processing": "1 day"},
-                {"name": "Social Case Study Report", "fee": "Free", "processing": "2-3 days"},
-                {"name": "Referral Letter", "fee": "Free", "processing": "1 day"},
-                {"name": "Assessment Report", "fee": "Free", "processing": "2-3 days"},
-                {"name": "4Ps Certification", "fee": "Free", "processing": "2 days"}
-            ]
-        },
-        "Municipal Agriculture Office": {
-            "icon": "🌾",
-            "description": "Agricultural services",
-            "documents": [
-                {"name": "Farmer's Certification", "fee": "Free", "processing": "1-2 days"},
-                {"name": "Agricultural Technician Report", "fee": "Free", "processing": "3-5 days"},
-                {"name": "Soil Analysis Report", "fee": "₱100", "processing": "5-7 days"},
-                {"name": "Livestock Transport Permit", "fee": "₱50", "processing": "1 day"}
-            ]
-        },
-        "MENRO (Environment)": {
-            "icon": "🌳",
-            "description": "Environment and natural resources",
-            "documents": [
-                {"name": "Environmental Compliance Certificate", "fee": "₱500", "processing": "7-10 days"},
-                {"name": "Tree Cutting Permit", "fee": "₱200", "processing": "3-5 days"},
-                {"name": "Waste Generator's ID", "fee": "₱100", "processing": "2-3 days"},
-                {"name": "Environmental Clearance", "fee": "₱300", "processing": "5-7 days"}
-            ]
-        },
-        "MDRRMO (Disaster Risk Reduction)": {
-            "icon": "⚠️",
-            "description": "Disaster management",
-            "documents": [
-                {"name": "Geohazard Clearance", "fee": "Free", "processing": "2-3 days"},
-                {"name": "Certificate of No Incident", "fee": "Free", "processing": "1 day"},
-                {"name": "Disaster Report Certification", "fee": "Free", "processing": "2 days"},
-                {"name": "Evacuation Center Referral", "fee": "Free", "processing": "1 day"}
-            ]
-        },
-        "Municipal Police Station": {
-            "icon": "👮",
-            "description": "Peace and order",
-            "documents": [
-                {"name": "Police Clearance", "fee": "₱150", "processing": "1-2 days"},
-                {"name": "Blotter Certificate", "fee": "₱50", "processing": "1 day"},
-                {"name": "Incident Report", "fee": "₱100", "processing": "2-3 days"},
-                {"name": "Traffic Violation Report", "fee": "₱100", "processing": "1-2 days"}
-            ]
-        },
-        "Bureau of Fire Protection": {
-            "icon": "🔥",
-            "description": "Fire safety and prevention",
-            "documents": [
-                {"name": "Fire Safety Inspection Certificate", "fee": "₱300", "processing": "3-5 days"},
-                {"name": "Fire Clearance", "fee": "₱200", "processing": "2-3 days"},
-                {"name": "Incident Report (Fire)", "fee": "Free", "processing": "2 days"}
-            ]
-        },
-        "PESO (Public Employment Service Office)": {
-            "icon": "💼",
-            "description": "Employment services",
-            "documents": [
-                {"name": "Job Seeker Registration", "fee": "Free", "processing": "1 day"},
-                {"name": "Employment Certificate", "fee": "Free", "processing": "1-2 days"},
-                {"name": "Referral Letter (Employment)", "fee": "Free", "processing": "1 day"},
-                {"name": "Training Certificate", "fee": "Free", "processing": "2-3 days"}
-            ]
-        },
-        "OSCA (Senior Citizens Office)": {
-            "icon": "👴",
-            "description": "Senior citizen affairs",
-            "documents": [
-                {"name": "Senior Citizen ID", "fee": "Free", "processing": "3-5 days"},
-                {"name": "OSCA ID", "fee": "Free", "processing": "3-5 days"},
-                {"name": "Senior Citizen Certification", "fee": "Free", "processing": "1 day"}
-            ]
-        },
-        "PDAO (Persons with Disability)": {
-            "icon": "♿",
-            "description": "PWD affairs",
-            "documents": [
-                {"name": "PWD ID", "fee": "Free", "processing": "3-5 days"},
-                {"name": "PWD Certification", "fee": "Free", "processing": "1-2 days"},
-                {"name": "Discount Privilege Letter", "fee": "Free", "processing": "1 day"}
-            ]
-        },
-        "Tourism Office": {
-            "icon": "🏖️",
-            "description": "Tourism promotion and development",
-            "documents": [
-                {"name": "Tourist Assistance Letter", "fee": "Free", "processing": "1 day"},
-                {"name": "Tour Guide Certification", "fee": "₱100", "processing": "3-5 days"},
-                {"name": "Tourism Establishment Registration", "fee": "₱200", "processing": "5-7 days"},
-                {"name": "Event Permit (Tourism-related)", "fee": "₱300", "processing": "5-7 days"}
-            ]
-        },
-        "Municipal Legal Office": {
-            "icon": "⚖️",
-            "description": "Legal services",
-            "documents": [
-                {"name": "Legal Opinion", "fee": "Free", "processing": "5-7 days"},
-                {"name": "Contract Review", "fee": "Free", "processing": "3-5 days"},
-                {"name": "Notarial Services", "fee": "₱100", "processing": "1 day"},
-                {"name": "Certified True Copy (Legal Docs)", "fee": "₱75", "processing": "1-2 days"}
-            ]
-        }
-    }
-    
-    # Search functionality
-    search_term = st.text_input("🔍 Search for offices or documents", placeholder="e.g., birth certificate, permit, clearance...")
-    
-    # Category filters
-    categories = ["All Offices", "Executive", "Legislative", "Administrative", "Civil Registry", 
-                  "Health & Social", "Engineering", "Peace & Order", "Economic", "Environment"]
-    
-    selected_category = st.selectbox("Filter by Category", categories)
-    
-    # Filter offices based on category
-    category_mapping = {
-        "Executive": ["Office of the Municipal Mayor", "Office of the Municipal Vice Mayor"],
-        "Legislative": ["Sangguniang Bayan"],
-        "Administrative": ["Municipal Assessor's Office", "Municipal Treasurer's Office", "Municipal Budget Office", 
-                          "Municipal Accounting Office", "Municipal Planning and Development Office"],
-        "Civil Registry": ["Municipal Civil Registrar"],
-        "Health & Social": ["Municipal Health Office", "MSWDO (Social Welfare)", "OSCA (Senior Citizens Office)", 
-                           "PDAO (Persons with Disability)"],
-        "Engineering": ["Municipal Engineering Office"],
-        "Peace & Order": ["Municipal Police Station", "Bureau of Fire Protection", "MDRRMO (Disaster Risk Reduction)"],
-        "Economic": ["Municipal Agriculture Office", "PESO (Public Employment Service Office)", "Tourism Office"],
-        "Environment": ["MENRO (Environment)"]
-    }
-    
-    # Display offices
-    offices_found = False
-    for office_name, office_data in lgu_offices.items():
-        # Apply category filter
-        if selected_category != "All Offices" and office_name not in category_mapping.get(selected_category, []):
-            continue
-            
-        # Apply search filter
-        if search_term:
-            search_term_lower = search_term.lower()
-            doc_matches = any(search_term_lower in doc['name'].lower() for doc in office_data['documents'])
-            office_matches = search_term_lower in office_name.lower()
-            if not (doc_matches or office_matches):
-                continue
-        
-        offices_found = True
-        with st.expander(f"{office_data['icon']} {office_name}"):
-            st.caption(office_data['description'])
-            st.markdown("---")
-            
-            # Display documents for this office
-            for doc in office_data['documents']:
-                col1, col2, col3 = st.columns([3, 1, 1])
-                with col1:
-                    st.markdown(f"**{doc['name']}**")
-                with col2:
-                    st.markdown(f"`{doc['fee']}`")
-                with col3:
-                    if st.button("Apply", key=f"{office_name}_{doc['name']}"):
-                        st.session_state['selected_service'] = doc
-                        st.session_state['selected_office'] = office_name
-                        st.session_state['service_type'] = 'lgu'
-                        show_application_form(doc['name'], office_name)
-                
-                st.caption(f"⏱️ Processing: {doc['processing']}")
-                st.markdown("---")
-    
-    if not offices_found:
-        st.info("No offices or documents match your search criteria.")
-    
-    # Quick apply section for popular documents
-    st.markdown("---")
-    st.subheader("📋 Popular Requests")
-    
-    popular_docs = [
-        ("Birth Certificate", "Municipal Civil Registrar"),
-        ("Barangay Clearance", "Barangay Hall"),
-        ("Police Clearance", "Municipal Police Station"),
-        ("Business Permit", "Municipal Engineering Office"),
-        ("Certificate of Indigency", "MSWDO (Social Welfare)")
-    ]
-    
-    cols = st.columns(5)
-    for idx, (doc_name, office) in enumerate(popular_docs):
-        with cols[idx]:
-            if st.button(f"{doc_name}\n({office})", use_container_width=True):
-                st.info(f"Please go to the {office} section above to apply for {doc_name}")
-
-def show_barangay_services():
-    st.title("Barangay Government Unit Services")
-    
-    # Residency Documents
-    st.markdown('<div class="service-header">📋 Residency Documents</div>', unsafe_allow_html=True)
-    
-    residency_services = [
-        {"name": "Barangay Clearance", "fee": "₱50", "processing": "1 day"},
-        {"name": "Certificate of Residency", "fee": "₱30", "processing": "1 day"},
-        {"name": "Certificate of Indigency", "fee": "Free", "processing": "1 day"}
-    ]
-    
-    for service in residency_services:
-        with st.container():
-            st.markdown(f"""
-            <div class="service-container">
-                <strong>{service['name']}</strong><br>
-                <span style="color:#666;">Fee: {service['fee']} | Processing: {service['processing']}</span>
-            </div>
-            """, unsafe_allow_html=True)
-            if st.button(f"Apply Now", key=f"residency_{service['name']}"):
-                st.session_state['selected_service'] = service
-                st.session_state['service_type'] = 'residency'
-                show_application_form(service['name'], "Barangay Hall")
-    
-    # Special IDs
-    st.markdown('<div class="service-header">🆔 Special IDs</div>', unsafe_allow_html=True)
-    
-    special_ids = [
-        {"name": "Senior Citizen ID", "fee": "Free", "processing": "3-5 days"},
-        {"name": "PWD ID", "fee": "Free", "processing": "3-5 days"},
-        {"name": "Solo Parent ID", "fee": "Free", "processing": "3-5 days"},
-        {"name": "Police Clearance", "fee": "₱150", "processing": "1-2 days"}
-    ]
-    
-    for service in special_ids:
-        with st.container():
-            st.markdown(f"""
-            <div class="service-container">
-                <strong>{service['name']}</strong><br>
-                <span style="color:#666;">Fee: {service['fee']} | Processing: {service['processing']}</span>
-            </div>
-            """, unsafe_allow_html=True)
-            if st.button(f"Apply Now", key=f"special_{service['name']}"):
-                st.session_state['selected_service'] = service
-                st.session_state['service_type'] = 'special'
-                show_application_form(service['name'], "Barangay Hall")
-    
-    # Assistance Programs
-    st.markdown('<div class="service-header">🤝 Assistance Programs</div>', unsafe_allow_html=True)
-    
-    assistance_programs = [
-        {"name": "Medical/Burial Assistance", "fee": "Free", "processing": "3-5 days"},
-        {"name": "4Ps Program", "fee": "Free", "processing": "7-10 days"},
-        {"name": "Financial Assistance", "fee": "Free", "processing": "5-7 days"}
-    ]
-    
-    for service in assistance_programs:
-        with st.container():
-            st.markdown(f"""
-            <div class="service-container">
-                <strong>{service['name']}</strong><br>
-                <span style="color:#666;">Fee: {service['fee']} | Processing: {service['processing']}</span>
-            </div>
-            """, unsafe_allow_html=True)
-            if st.button(f"Apply Now", key=f"assistance_{service['name']}"):
-                st.session_state['selected_service'] = service
-                st.session_state['service_type'] = 'assistance'
-                show_application_form(service['name'], "Barangay Hall")
-    
-    # Permits
-    st.markdown('<div class="service-header">📜 Permits</div>', unsafe_allow_html=True)
-    
-    permit_services = [
-        {"name": "Tricycle Franchise", "fee": "₱1000", "processing": "7-10 days"}
-    ]
-    
-    for service in permit_services:
-        with st.container():
-            st.markdown(f"""
-            <div class="service-container">
-                <strong>{service['name']}</strong><br>
-                <span style="color:#666;">Fee: {service['fee']} | Processing: {service['processing']}</span>
-            </div>
-            """, unsafe_allow_html=True)
-            if st.button(f"Apply Now", key=f"permit_{service['name']}"):
-                st.session_state['selected_service'] = service
-                st.session_state['service_type'] = 'permit'
-                show_application_form(service['name'], "Barangay Hall")
-
-def show_application_form(service_name, office_name=None):
-    st.markdown("---")
-    if office_name:
-        st.subheader(f"Application Form - {service_name}")
-        st.caption(f"Office: {office_name}")
-    else:
-        st.subheader(f"Application Form - {service_name}")
-    
-    with st.form(key=f"form_{service_name.replace(' ', '_')}"):
-        # Display office info
-        if office_name:
-            st.info(f"This application will be processed by: **{office_name}**")
-        
-        # Personal Information
-        st.write("**Personal Information**")
-        col1, col2 = st.columns(2)
-        with col1:
-            first_name = st.text_input("First Name*")
-        with col2:
-            last_name = st.text_input("Last Name*")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            birth_date = st.date_input("Date of Birth*", min_value=datetime(1900,1,1), max_value=datetime.now())
-        with col2:
-            gender = st.selectbox("Gender*", ["Male", "Female", "Other"])
-        
-        # Contact Information
-        st.write("**Contact Information**")
-        col1, col2 = st.columns(2)
-        with col1:
-            contact_no = st.text_input("Contact Number*")
-        with col2:
-            email = st.text_input("Email Address*", value=st.session_state.username if st.session_state.username else "")
-        
-        # Address
-        st.write("**Address**")
-        col1, col2 = st.columns(2)
-        with col1:
-            barangay = st.selectbox("Barangay*", [
-                "Barangay 1", "Barangay 2", "Barangay 3", "Barangay 4", 
-                "Barangay 5", "Barangay 6", "Barangay 7", "Barangay 8"
-            ])
-        with col2:
-            municipality = st.text_input("Municipality*", value="Cantilan", disabled=True)
-        
-        street = st.text_input("Street/Purok*")
-        
-        # Service Specific Fields
-        st.write("**Application Details**")
-        purpose = ""
-        if "Certificate" in service_name or "Clearance" in service_name:
-            purpose = st.text_area("Purpose of Application*")
-        
-        business_name = ""
-        business_type = ""
-        if service_name in ["Business Permit", "Building Permit"]:
-            col1, col2 = st.columns(2)
-            with col1:
-                business_name = st.text_input("Business Name*")
-            with col2:
-                business_type = st.selectbox("Business Type*", ["Sole Proprietorship", "Partnership", "Corporation", "Cooperative"])
-        
-        plate_no = ""
-        franchise_type = ""
-        if "Tricycle Franchise" in service_name:
-            col1, col2 = st.columns(2)
-            with col1:
-                plate_no = st.text_input("Plate Number*")
-            with col2:
-                franchise_type = st.selectbox("Franchise Type*", ["New", "Renewal", "Transfer"])
-        
-        # Document Upload
-        st.write("**Required Documents**")
-        uploaded_files = st.file_uploader("Upload supporting documents", 
-                                          accept_multiple_files=True,
-                                          type=['pdf', 'jpg', 'jpeg', 'png'])
-        
-        # Payment Method
-        st.write("**Payment Method**")
-        payment_method = st.radio("Select Payment Method", 
-                                  ["E-Wallet (GCash, Maya)", "Cash (Pay at LGU)", "Online Banking"],
-                                  horizontal=True)
-        
-        # Terms and Conditions
-        agree = st.checkbox("I certify that all information provided is true and correct*")
-        
-        # Submit button
-        submitted = st.form_submit_button("Submit Application", use_container_width=True)
-        
-        if submitted:
-            if agree and first_name and last_name and contact_no and email:
-                tracking_no = f"{service_name[:2].upper()}-{datetime.now().strftime('%Y%m%d')}-{random.randint(1000,9999)}"
-                
-                # Create application record
-                new_app = {
-                    "user_email": st.session_state.username,
-                    "type": service_name,
-                    "office": office_name if office_name else "N/A",
-                    "date": datetime.now().strftime("%Y-%m-%d"),
-                    "status": "Pending",
-                    "tracking": tracking_no,
-                    "first_name": first_name,
-                    "last_name": last_name,
-                    "contact_no": contact_no,
-                    "email": email,
-                    "barangay": barangay,
-                    "purpose": purpose if purpose else "N/A",
-                    "payment_method": payment_method,
-                    "payment_status": "Pending"
-                }
-                
-                # Add service-specific fields
-                if business_name:
-                    new_app['business_name'] = business_name
-                if business_type:
-                    new_app['business_type'] = business_type
-                if plate_no:
-                    new_app['plate_no'] = plate_no
-                if franchise_type:
-                    new_app['franchise_type'] = franchise_type
-                
-                st.session_state.applications.append(new_app)
-                
-                # Create payment record
-                payment_id = f"PAY{random.randint(1000,9999)}"
-                
-                # Extract fee amount (remove ₱ and handle ranges)
-                fee_text = st.session_state['selected_service']['fee'] if 'selected_service' in st.session_state else "₱150"
-                try:
-                    if "-" in fee_text:
-                        amount = int(fee_text.split('-')[0].replace('₱', '').strip())
-                    elif "Free" in fee_text:
-                        amount = 0
-                    else:
-                        amount = int(fee_text.replace('₱', '').strip())
-                except:
-                    amount = 150  # default amount
-                
-                st.session_state.payments.append({
-                    "id": payment_id,
-                    "tracking": tracking_no,
-                    "amount": amount,
-                    "method": payment_method,
-                    "status": "Pending Verification" if "Cash" in payment_method else "Verified",
-                    "date": datetime.now().strftime("%Y-%m-%d")
-                })
-                
-                st.success(f"✅ Application submitted successfully!")
-                st.info(f"📱 Tracking Number: **{tracking_no}**")
-                st.info(f"🏢 Processing Office: **{office_name if office_name else 'LGU Office'}**")
-                st.info("📨 You will receive SMS notifications for updates on your application.")
-                
-                # Add a button to go back to services
-                if st.button("Apply for Another Service", key="another_service"):
-                    st.rerun()
-            else:
-                st.error("Please fill in all required fields and agree to terms and conditions")
-
-def show_dashboard():
-    st.title("Dashboard")
-    
-    # Get user-specific applications (filter by user)
-    user_apps = [app for app in st.session_state.applications if app.get('user_email') == st.session_state.username]
-    
-    # Calculate statistics
-    active_count = len([app for app in user_apps if app['status'] in ['Processing', 'Pending']])
-    completed_count = len([app for app in user_apps if app['status'] == 'Approved'])
-    total_count = len(user_apps)
-    
-    # Statistics cards
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown(f"""
-        <div class="dashboard-card" style="text-align:center;">
-            <h3 style="margin:0; color:#666;">Active</h3>
-            <h2 style="margin:0; color:#28a745;">{active_count}</h2>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown(f"""
-        <div class="dashboard-card" style="text-align:center;">
-            <h3 style="margin:0; color:#666;">Completed</h3>
-            <h2 style="margin:0; color:#28a745;">{completed_count}</h2>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown(f"""
-        <div class="dashboard-card" style="text-align:center;">
-            <h3 style="margin:0; color:#666;">Total</h3>
-            <h2 style="margin:0; color:#28a745;">{total_count}</h2>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    st.subheader("Recent Applications")
-    
-    # Show recent applications or empty state
-    if user_apps:
-        recent_apps = sorted(user_apps, key=lambda x: x['date'], reverse=True)[:5]
-        for app in recent_apps:
-            status_class = f"status-{app['status'].lower()}"
-            st.markdown(f"""
-            <div class="recent-app">
-                <div style="display:flex; justify-content:space-between;">
-                    <strong>{app['type']}</strong>
-                    <span class="status-badge {status_class}">{app['status']}</span>
-                </div>
-                <div style="color:#666; font-size:12px;">Tracking: {app['tracking']}</div>
-                <div style="color:#666; font-size:12px;">{app['date']}</div>
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.info("No applications yet. Start by applying for a service from the LGU or Barangay sections.")
-
-# [Admin dashboard functions remain the same]
+# Admin dashboard functions
 def show_admin_dashboard():
     st.title("Admin Dashboard")
     st.markdown("---")
@@ -2059,14 +2329,24 @@ def show_admin_dashboard():
     # Route to appropriate admin page
     if st.session_state.admin_page == 'dashboard_overview':
         show_admin_dashboard_overview()
+        st.markdown("---")
+        add_chatbot_to_page()
     elif st.session_state.admin_page == 'manage_request':
         show_admin_manage_request()
+        st.markdown("---")
+        add_chatbot_to_page()
     elif st.session_state.admin_page == 'manage_payment':
         show_admin_manage_payment()
+        st.markdown("---")
+        add_chatbot_to_page()
     elif st.session_state.admin_page == 'reports_analytics':
         show_admin_reports_analytics()
+        st.markdown("---")
+        add_chatbot_to_page()
     elif st.session_state.admin_page == 'user_management':
         show_admin_user_management()
+        st.markdown("---")
+        add_chatbot_to_page()
 
 def show_admin_dashboard_overview():
     st.subheader("📊 Dashboard Overview")
