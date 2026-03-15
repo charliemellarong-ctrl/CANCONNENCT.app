@@ -11,16 +11,17 @@ import io
 import base64
 import plotly.express as px
 import plotly.graph_objects as go
+from streamlit_option_menu import option_menu
 
 # Page configuration
 st.set_page_config(
     page_title="Cantilan-eCivil",
     page_icon="🏛️",
-    layout="centered",
-    initial_sidebar_state="collapsed"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Custom CSS for mobile-friendly design
+# Custom CSS for mobile-friendly design and blue sidebar
 def load_css():
     st.markdown("""
     <style>
@@ -28,6 +29,28 @@ def load_css():
     .stApp {
         max-width: 100%;
         padding: 0px;
+    }
+    
+    /* Blue sidebar styling */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #1e3c72 0%, #2a5298 100%);
+    }
+    
+    [data-testid="stSidebar"] .stButton button {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        transition: all 0.3s ease;
+    }
+    
+    [data-testid="stSidebar"] .stButton button:hover {
+        background-color: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.3);
+        transform: translateX(5px);
+    }
+    
+    [data-testid="stSidebar"] .stMarkdown {
+        color: white;
     }
     
     /* Container styling */
@@ -75,11 +98,39 @@ def load_css():
     }
     
     .profile-pic {
-        width: 100px;
-        height: 100px;
+        width: 150px;
+        height: 150px;
         border-radius: 50%;
-        border: 3px solid white;
+        border: 4px solid white;
         margin: 0 auto;
+        cursor: pointer;
+        transition: transform 0.3s ease;
+    }
+    
+    .profile-pic:hover {
+        transform: scale(1.05);
+    }
+    
+    .profile-pic-container {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .profile-pic-upload {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        background-color: #28a745;
+        color: white;
+        border-radius: 50%;
+        width: 35px;
+        height: 35px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border: 2px solid white;
+        font-size: 18px;
     }
     
     .verification-badge {
@@ -125,6 +176,25 @@ def load_css():
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
+    /* Staff stat cards */
+    .staff-stat-card {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        color: white;
+        border-radius: 10px;
+        padding: 15px;
+        margin: 5px;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .ai-validation-card {
+        background-color: #e3f2fd;
+        border-left: 4px solid #2196f3;
+        border-radius: 10px;
+        padding: 15px;
+        margin: 10px 0;
+    }
+    
     /* Recent applications */
     .recent-app {
         background-color: white;
@@ -145,6 +215,8 @@ def load_css():
     .status-approved { background-color: #d4edda; color: #155724; }
     .status-rejected { background-color: #f8d7da; color: #721c24; }
     .status-processing { background-color: #cce5ff; color: #004085; }
+    .status-flagged { background-color: #f8d7da; color: #721c24; }
+    .status-verified { background-color: #d4edda; color: #155724; }
     
     /* Success message styling */
     .stSuccess {
@@ -172,6 +244,56 @@ def load_css():
         border: 1px solid #e9ecef;
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
+    
+    /* Severity badges */
+    .severity-high {
+        background-color: #dc3545;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+    }
+    
+    .severity-medium {
+        background-color: #ffc107;
+        color: black;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+    }
+    
+    .severity-low {
+        background-color: #17a2b8;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+    }
+    
+    /* Quick action buttons */
+    .quick-action-btn {
+        background-color: #1e3c72;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        padding: 10px;
+        margin: 5px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .quick-action-btn:hover {
+        background-color: #2a5298;
+        transform: translateY(-2px);
+    }
+    
+    /* Modal styling */
+    .modal-content {
+        background-color: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -191,17 +313,25 @@ def init_session_state():
         st.session_state.users = {}
     if 'profile_verified' not in st.session_state:
         st.session_state.profile_verified = False
+    if 'profile_pic' not in st.session_state:
+        st.session_state.profile_pic = None
     if 'admin_logged_in' not in st.session_state:
         st.session_state.admin_logged_in = False
+    if 'staff_logged_in' not in st.session_state:
+        st.session_state.staff_logged_in = False
     if 'registration_success' not in st.session_state:
         st.session_state.registration_success = False
     if 'admin_page' not in st.session_state:
         st.session_state.admin_page = 'dashboard_overview'
+    if 'staff_page' not in st.session_state:
+        st.session_state.staff_page = 'overview'
+    if 'selected_department' not in st.session_state:
+        st.session_state.selected_department = None
     if 'staff_members' not in st.session_state:
         st.session_state.staff_members = [
-            {"id": 1, "name": "John Doe", "email": "john@cantilan.gov.ph", "role": "Processor", "status": "Active"},
-            {"id": 2, "name": "Jane Smith", "email": "jane@cantilan.gov.ph", "role": "Verifier", "status": "Active"},
-            {"id": 3, "name": "Mike Wilson", "email": "mike@cantilan.gov.ph", "role": "Admin", "status": "Active"}
+            {"id": 1, "name": "John Doe", "email": "john@cantilan.gov.ph", "role": "Processor", "status": "Active", "department": "Civil Registry", "password": hash_password("staff123")},
+            {"id": 2, "name": "Jane Smith", "email": "jane@cantilan.gov.ph", "role": "Verifier", "status": "Active", "department": "Treasury", "password": hash_password("staff123")},
+            {"id": 3, "name": "Mike Wilson", "email": "mike@cantilan.gov.ph", "role": "Admin", "status": "Active", "department": "Health & Sanitation", "password": hash_password("staff123")}
         ]
     if 'payments' not in st.session_state:
         st.session_state.payments = [
@@ -209,6 +339,129 @@ def init_session_state():
             {"id": "PAY002", "tracking": "BP-20240114-5678", "amount": 500, "method": "E-Wallet", "status": "Verified", "date": "2024-01-14"},
             {"id": "PAY003", "tracking": "BCL-20240113-9012", "amount": 50, "method": "Cash", "status": "Pending Verification", "date": "2024-01-13"}
         ]
+    if 'validated_documents' not in st.session_state:
+        st.session_state.validated_documents = generate_mock_validated_documents()
+    if 'peak_hours_data' not in st.session_state:
+        st.session_state.peak_hours_data = generate_peak_hours_data()
+    if 'processing_forecasts' not in st.session_state:
+        st.session_state.processing_forecasts = generate_processing_forecasts()
+    if 'manpower_recommendations' not in st.session_state:
+        st.session_state.manpower_recommendations = generate_manpower_recommendations()
+    if 'monthly_reports' not in st.session_state:
+        st.session_state.monthly_reports = generate_monthly_reports()
+    if 'quick_action_modal' not in st.session_state:
+        st.session_state.quick_action_modal = None
+
+# Generate mock data functions
+def generate_mock_validated_documents():
+    documents = []
+    departments = ["Civil Registry", "Treasury", "Health & Sanitation", "Admin"]
+    statuses = ["Passed", "Flagged"]
+    issues = ["Incomplete Form", "Incorrect Information", "Duplicate Submission", "Missing Signature", "Invalid ID"]
+    
+    for i in range(50):
+        doc = {
+            "id": f"DOC{i:03d}",
+            "tracking": f"TRACK-{random.randint(1000,9999)}",
+            "department": random.choice(departments),
+            "document_type": random.choice(["Birth Certificate", "Business Permit", "Health Clearance", "Barangay Clearance"]),
+            "applicant": f"Applicant {i}",
+            "submission_date": (datetime.now() - timedelta(days=random.randint(0,30))).strftime("%Y-%m-%d"),
+            "validation_status": random.choice(statuses),
+            "validation_date": datetime.now().strftime("%Y-%m-%d"),
+            "flagged_issues": [],
+            "severity": None
+        }
+        
+        if doc["validation_status"] == "Flagged":
+            num_issues = random.randint(1, 3)
+            doc["flagged_issues"] = random.sample(issues, num_issues)
+            doc["severity"] = random.choice(["High", "Medium", "Low"])
+        
+        documents.append(doc)
+    
+    return documents
+
+def generate_peak_hours_data():
+    hours = list(range(8, 18))  # 8 AM to 5 PM
+    data = []
+    for hour in hours:
+        volume = random.randint(5, 30)
+        if volume < 10:
+            level = "Low"
+            color = "green"
+        elif volume < 20:
+            level = "Medium"
+            color = "yellow"
+        else:
+            level = "High"
+            color = "red"
+        
+        data.append({
+            "hour": f"{hour}:00",
+            "volume": volume,
+            "level": level,
+            "color": color
+        })
+    return data
+
+def generate_processing_forecasts():
+    services = [
+        {"service": "Birth Certificate", "avg_time": 3.2, "trend": "↑", "confidence": 85},
+        {"service": "Marriage Certificate", "avg_time": 4.1, "trend": "→", "confidence": 82},
+        {"service": "Business Permit", "avg_time": 7.5, "trend": "↓", "confidence": 78},
+        {"service": "Health Clearance", "avg_time": 2.3, "trend": "↑", "confidence": 91},
+        {"service": "Barangay Clearance", "avg_time": 1.1, "trend": "→", "confidence": 95},
+        {"service": "Police Clearance", "avg_time": 1.8, "trend": "↑", "confidence": 88}
+    ]
+    
+    for service in services:
+        service["predicted_time"] = round(service["avg_time"] * random.uniform(0.9, 1.1), 1)
+    
+    return services
+
+def generate_manpower_recommendations():
+    time_slots = ["8 AM - 12 PM", "12 PM - 4 PM", "4 PM - 5 PM"]
+    recommendations = []
+    
+    for slot in time_slots:
+        current = random.randint(2, 5)
+        recommended = current + random.randint(0, 2)
+        utilization = round((current / recommended) * 100)
+        
+        recommendations.append({
+            "time_slot": slot,
+            "current_staff": current,
+            "recommended_staff": recommended,
+            "utilization": utilization
+        })
+    
+    return recommendations
+
+def generate_monthly_reports():
+    months = ["January", "February", "March", "April", "May", "June"]
+    reports = []
+    
+    for month in months:
+        pending = random.randint(10, 30)
+        processing = random.randint(15, 35)
+        completed = random.randint(40, 80)
+        rejected = random.randint(5, 15)
+        total = pending + processing + completed + rejected
+        
+        avg_time = round(random.uniform(2.5, 5.5), 1)
+        
+        reports.append({
+            "month": month,
+            "pending": pending,
+            "processing": processing,
+            "completed": completed,
+            "rejected": rejected,
+            "total": total,
+            "avg_processing_time": avg_time
+        })
+    
+    return reports
 
 # User authentication functions
 def hash_password(password):
@@ -241,6 +494,12 @@ def login_user(email, password):
             return False, "Invalid password"
     return False, "Email not found"
 
+def login_staff(email, password):
+    for staff in st.session_state.staff_members:
+        if staff['email'] == email and staff['password'] == hash_password(password):
+            return True, staff
+    return False, "Invalid staff credentials"
+
 # Admin credentials
 ADMIN_CREDENTIALS = {
     'admin@cantilan.gov.ph': hash_password('admin123')
@@ -252,9 +511,15 @@ def main():
     init_session_state()
     
     # Sidebar navigation
-    if st.session_state.logged_in or st.session_state.admin_logged_in:
+    if st.session_state.logged_in or st.session_state.admin_logged_in or st.session_state.staff_logged_in:
         with st.sidebar:
-            st.image("https://via.placeholder.com/150x50?text=Cantilan-eCivil", use_column_width=True)
+            # Logo and title
+            st.markdown("""
+            <div style="text-align: center; padding: 20px 0;">
+                <h2 style="color: white; margin: 0;">🏛️ Cantilan-eCivil</h2>
+            </div>
+            """, unsafe_allow_html=True)
+            
             st.markdown("---")
             
             if st.session_state.admin_logged_in:
@@ -274,8 +539,48 @@ def main():
                 if st.button("👥 User Management", use_container_width=True):
                     st.session_state.admin_page = 'user_management'
                     st.rerun()
+            
+            elif st.session_state.staff_logged_in:
+                # Staff sidebar menu
+                staff_info = st.session_state.get('staff_info', {})
+                st.markdown(f"""
+                <div style="text-align: center; color: white; padding: 10px;">
+                    <div style="font-size: 40px;">👤</div>
+                    <h3 style="margin: 5px 0; color: white;">{staff_info.get('name', 'Staff')}</h3>
+                    <p style="margin: 0; color: rgba(255,255,255,0.8);">{staff_info.get('role', '')}</p>
+                    <p style="margin: 0; color: rgba(255,255,255,0.6); font-size: 12px;">{staff_info.get('department', '')}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.markdown("---")
+                
+                if st.button("📊 Department Overview", use_container_width=True):
+                    st.session_state.staff_page = 'overview'
+                    st.rerun()
+                if st.button("📝 Pending Requests", use_container_width=True):
+                    st.session_state.staff_page = 'pending'
+                    st.rerun()
+                if st.button("✅ Document Validation", use_container_width=True):
+                    st.session_state.staff_page = 'validation'
+                    st.rerun()
+                if st.button("📈 Analytics", use_container_width=True):
+                    st.session_state.staff_page = 'analytics'
+                    st.rerun()
+                if st.button("📋 Reports", use_container_width=True):
+                    st.session_state.staff_page = 'reports'
+                    st.rerun()
+            
             else:
                 # Regular user sidebar menu
+                st.markdown(f"""
+                <div style="text-align: center; color: white; padding: 10px;">
+                    <div style="font-size: 40px;">👤</div>
+                    <h3 style="margin: 5px 0; color: white;">{st.session_state.users.get(st.session_state.username, {}).get('first_name', 'User')}</h3>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.markdown("---")
+                
                 if st.button("🏠 Dashboard", use_container_width=True):
                     st.session_state.page = 'dashboard'
                     st.rerun()
@@ -293,15 +598,18 @@ def main():
             if st.button("🚪 Logout", use_container_width=True):
                 st.session_state.logged_in = False
                 st.session_state.admin_logged_in = False
+                st.session_state.staff_logged_in = False
                 st.session_state.username = None
                 st.session_state.page = 'login'
                 st.rerun()
     
     # Page routing
-    if not st.session_state.logged_in and not st.session_state.admin_logged_in:
+    if not st.session_state.logged_in and not st.session_state.admin_logged_in and not st.session_state.staff_logged_in:
         show_login_page()
     elif st.session_state.admin_logged_in:
         show_admin_dashboard()
+    elif st.session_state.staff_logged_in:
+        show_staff_dashboard()
     else:
         if st.session_state.page == 'dashboard':
             show_dashboard()
@@ -321,7 +629,7 @@ def show_login_page():
         st.success("Registration successful! Please login with your credentials.")
         st.session_state.registration_success = False
     
-    tab1, tab2, tab3 = st.tabs(["User Login", "User Register", "Admin Login"])
+    tab1, tab2, tab3, tab4 = st.tabs(["User Login", "User Register", "Staff Login", "Admin Login"])
     
     with tab1:
         st.subheader("Login to Your Account")
@@ -336,6 +644,7 @@ def show_login_page():
                     st.session_state.username = email
                     st.session_state.page = 'dashboard'
                     st.session_state.profile_verified = st.session_state.users[email]['verified']
+                    st.session_state.profile_pic = st.session_state.users[email].get('profile_pic')
                     st.rerun()
                 else:
                     st.error(message)
@@ -372,6 +681,25 @@ def show_login_page():
                     st.error(message)
     
     with tab3:
+        st.subheader("Staff Login")
+        staff_email = st.text_input("Staff Email", key="staff_email")
+        staff_password = st.text_input("Staff Password", type="password", key="staff_password")
+        
+        if st.button("Staff Login", use_container_width=True):
+            if staff_email and staff_password:
+                success, staff_data = login_staff(staff_email, staff_password)
+                if success:
+                    st.session_state.staff_logged_in = True
+                    st.session_state.staff_info = staff_data
+                    st.session_state.selected_department = staff_data['department']
+                    st.session_state.staff_page = 'overview'
+                    st.rerun()
+                else:
+                    st.error(staff_data)
+            else:
+                st.error("Please enter email and password")
+    
+    with tab4:
         st.subheader("Admin Login")
         admin_email = st.text_input("Admin Email", key="admin_email")
         admin_password = st.text_input("Admin Password", type="password", key="admin_password")
@@ -384,80 +712,43 @@ def show_login_page():
             else:
                 st.error("Invalid admin credentials")
 
-def show_dashboard():
-    st.title("Dashboard")
-    
-    # Get user-specific applications (filter by user)
-    user_apps = [app for app in st.session_state.applications if app.get('user_email') == st.session_state.username]
-    
-    # Calculate statistics
-    active_count = len([app for app in user_apps if app['status'] in ['Processing', 'Pending']])
-    completed_count = len([app for app in user_apps if app['status'] == 'Approved'])
-    total_count = len(user_apps)
-    
-    # Statistics cards
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown(f"""
-        <div class="dashboard-card" style="text-align:center;">
-            <h3 style="margin:0; color:#666;">Active</h3>
-            <h2 style="margin:0; color:#28a745;">{active_count}</h2>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown(f"""
-        <div class="dashboard-card" style="text-align:center;">
-            <h3 style="margin:0; color:#666;">Completed</h3>
-            <h2 style="margin:0; color:#28a745;">{completed_count}</h2>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown(f"""
-        <div class="dashboard-card" style="text-align:center;">
-            <h3 style="margin:0; color:#666;">Total</h3>
-            <h2 style="margin:0; color:#28a745;">{total_count}</h2>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    st.subheader("Recent Applications")
-    
-    # Show recent applications or empty state
-    if user_apps:
-        recent_apps = sorted(user_apps, key=lambda x: x['date'], reverse=True)[:5]
-        for app in recent_apps:
-            status_class = f"status-{app['status'].lower()}"
-            st.markdown(f"""
-            <div class="recent-app">
-                <div style="display:flex; justify-content:space-between;">
-                    <strong>{app['type']}</strong>
-                    <span class="status-badge {status_class}">{app['status']}</span>
-                </div>
-                <div style="color:#666; font-size:12px;">Tracking: {app['tracking']}</div>
-                <div style="color:#666; font-size:12px;">{app['date']}</div>
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.info("No applications yet. Start by applying for a service from the LGU or Barangay sections.")
-
 def show_profile():
     st.title("Profile")
     
     user_data = st.session_state.users.get(st.session_state.username, {})
     
-    # Profile header
-    st.markdown(f"""
-    <div class="profile-header">
-        <div style="text-align:center;">
-            <div style="font-size:50px;">👤</div>
+    # Profile header with picture upload
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.markdown('<div class="profile-pic-container">', unsafe_allow_html=True)
+        
+        # Display profile picture or default
+        if st.session_state.profile_pic:
+            st.image(st.session_state.profile_pic, width=150, output_format="auto")
+        else:
+            st.markdown('<div style="font-size: 150px; text-align: center;">👤</div>', unsafe_allow_html=True)
+        
+        # Upload new picture
+        uploaded_file = st.file_uploader("Change Profile Picture", type=['png', 'jpg', 'jpeg'], key="profile_pic_upload")
+        if uploaded_file is not None:
+            # Convert to base64 for storage
+            bytes_data = uploaded_file.getvalue()
+            st.session_state.profile_pic = bytes_data
+            st.session_state.users[st.session_state.username]['profile_pic'] = bytes_data
+            st.success("Profile picture updated!")
+            st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+        <div class="profile-header">
             <h2>{user_data.get('first_name', '')} {user_data.get('last_name', '')}</h2>
             <p>{user_data.get('email', '')}</p>
             <span class="verification-badge">{'✅ Verified' if st.session_state.profile_verified else '⚠️ Not Verified'}</span>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     
     # Profile completion
     st.subheader("Profile Completion")
@@ -554,6 +845,592 @@ def show_profile():
         if st.button("Save Privacy Settings", use_container_width=True):
             st.success("Privacy settings saved!")
 
+def show_staff_dashboard():
+    staff_info = st.session_state.staff_info
+    department = staff_info['department']
+    
+    # Header
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        st.title(f"🏛️ CanConnect | LGU Staff Portal")
+        st.caption(f"Welcome back, {staff_info['name']}!")
+    with col2:
+        st.markdown(f"""
+        <div style="background-color: #1e3c72; color: white; padding: 10px; border-radius: 5px; text-align: center;">
+            <strong>{staff_info['role']}</strong><br>
+            <span style="font-size: 12px;">{department}</span>
+        </div>
+        """, unsafe_allow_html=True)
+    with col3:
+        if st.button("🚪 Logout", use_container_width=True):
+            st.session_state.staff_logged_in = False
+            st.session_state.page = 'login'
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # Department Overview Section
+    if st.session_state.staff_page == 'overview':
+        show_staff_overview(department)
+    elif st.session_state.staff_page == 'pending':
+        show_staff_pending_requests(department)
+    elif st.session_state.staff_page == 'validation':
+        show_staff_validation(department)
+    elif st.session_state.staff_page == 'analytics':
+        show_staff_analytics(department)
+    elif st.session_state.staff_page == 'reports':
+        show_staff_reports(department)
+
+def show_staff_overview(department):
+    st.header(f"📊 {department} Department Overview")
+    
+    # Department info
+    department_info = {
+        "Civil Registry": {"icon": "📄", "description": "Birth, Marriage, Death Certificates, CENOMAR", "services": ["Birth Certificate", "Marriage Certificate", "Death Certificate", "CENOMAR"]},
+        "Treasury": {"icon": "💰", "description": "Business Permit Payments, License Renewals, Tax Payments, Fees", "services": ["Business Permit", "License Renewal", "Tax Payment", "Fees"]},
+        "Health & Sanitation": {"icon": "🏥", "description": "Health Clearance, Sanitation, Workplace Inspection, Food Safety", "services": ["Health Clearance", "Sanitary Permit", "Food Handler's Certificate"]},
+        "Admin": {"icon": "📋", "description": "Barangay Clearance, Police Clearance, ID Services, General Inquiries", "services": ["Barangay Clearance", "Police Clearance", "Senior Citizen ID", "PWD ID"]}
+    }
+    
+    info = department_info.get(department, {"icon": "🏢", "description": "", "services": []})
+    
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        st.markdown(f"<h1 style='font-size: 80px;'>{info['icon']}</h1>", unsafe_allow_html=True)
+    with col2:
+        st.subheader(department)
+        st.caption(info['description'])
+        st.markdown("**Services offered:**")
+        for service in info['services']:
+            st.markdown(f"- {service}")
+    
+    st.markdown("---")
+    
+    # Quick stats cards
+    col1, col2, col3, col4 = st.columns(4)
+    
+    # Filter applications for this department
+    dept_apps = [app for app in st.session_state.applications if app.get('office') == department]
+    pending_count = len([app for app in dept_apps if app['status'] == 'Pending'])
+    processing_count = len([app for app in dept_apps if app['status'] == 'Processing'])
+    completed_count = len([app for app in dept_apps if app['status'] == 'Approved'])
+    rejected_count = len([app for app in dept_apps if app['status'] == 'Rejected'])
+    
+    with col1:
+        st.markdown(f"""
+        <div class="staff-stat-card">
+            <h3 style="margin:0; font-size:14px;">PENDING</h3>
+            <h2 style="margin:0; font-size:32px;">{pending_count}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+        <div class="staff-stat-card">
+            <h3 style="margin:0; font-size:14px;">PROCESSING</h3>
+            <h2 style="margin:0; font-size:32px;">{processing_count}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(f"""
+        <div class="staff-stat-card">
+            <h3 style="margin:0; font-size:14px;">COMPLETED</h3>
+            <h2 style="margin:0; font-size:32px;">{completed_count}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown(f"""
+        <div class="staff-stat-card">
+            <h3 style="margin:0; font-size:14px;">REJECTED</h3>
+            <h2 style="margin:0; font-size:32px;">{rejected_count}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # AI Document Validation Stats
+    st.subheader("🤖 AI Document Validation System")
+    
+    dept_docs = [doc for doc in st.session_state.validated_documents if doc['department'] == department]
+    total_scanned = len(dept_docs)
+    passed = len([doc for doc in dept_docs if doc['validation_status'] == 'Passed'])
+    flagged = len([doc for doc in dept_docs if doc['validation_status'] == 'Flagged'])
+    total_issues = sum(len(doc['flagged_issues']) for doc in dept_docs if doc['validation_status'] == 'Flagged')
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.markdown(f"""
+        <div class="ai-validation-card" style="text-align: center;">
+            <h3 style="margin:0; color:#2196f3;">TOTAL SCANNED</h3>
+            <h2 style="margin:0;">{total_scanned}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+        <div class="ai-validation-card" style="text-align: center; border-left-color: #28a745;">
+            <h3 style="margin:0; color:#28a745;">PASSED</h3>
+            <h2 style="margin:0;">{passed}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(f"""
+        <div class="ai-validation-card" style="text-align: center; border-left-color: #dc3545;">
+            <h3 style="margin:0; color:#dc3545;">FLAGGED</h3>
+            <h2 style="margin:0;">{flagged}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown(f"""
+        <div class="ai-validation-card" style="text-align: center; border-left-color: #ffc107;">
+            <h3 style="margin:0; color:#ffc107;">TOTAL ISSUES</h3>
+            <h2 style="margin:0;">{total_issues}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Recent flagged documents
+    st.subheader("⚠️ Recent Flagged Documents")
+    flagged_docs = [doc for doc in dept_docs if doc['validation_status'] == 'Flagged'][:5]
+    
+    if flagged_docs:
+        for doc in flagged_docs:
+            severity_class = f"severity-{doc['severity'].lower()}" if doc['severity'] else ""
+            col1, col2, col3 = st.columns([2, 3, 1])
+            with col1:
+                st.write(f"**{doc['document_type']}**")
+                st.caption(f"Tracking: {doc['tracking']}")
+            with col2:
+                st.write("Issues:")
+                for issue in doc['flagged_issues']:
+                    st.markdown(f"- {issue}")
+            with col3:
+                st.markdown(f"<span class='{severity_class}'>{doc['severity']}</span>", unsafe_allow_html=True)
+                if st.button("Review", key=f"review_{doc['id']}"):
+                    st.session_state.quick_action_modal = 'verify'
+                    st.rerun()
+            st.markdown("---")
+    else:
+        st.info("No flagged documents found")
+    
+    # Quick Actions
+    st.markdown("---")
+    st.subheader("⚡ Quick Actions")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("✅ Verify Documents", use_container_width=True):
+            st.session_state.quick_action_modal = 'verify'
+    with col2:
+        if st.button("📄 Issue Certificate", use_container_width=True):
+            st.session_state.quick_action_modal = 'issue'
+    with col3:
+        if st.button("📊 View Reports", use_container_width=True):
+            st.session_state.quick_action_modal = 'reports'
+    
+    # Quick Action Modals
+    if st.session_state.quick_action_modal == 'verify':
+        show_verify_documents_modal(department)
+    elif st.session_state.quick_action_modal == 'issue':
+        show_issue_certificate_modal(department)
+    elif st.session_state.quick_action_modal == 'reports':
+        show_view_reports_modal(department)
+
+def show_staff_pending_requests(department):
+    st.header(f"📝 Pending Requests - {department}")
+    
+    # Filter pending requests for this department
+    pending_apps = [app for app in st.session_state.applications 
+                   if app.get('office') == department and app['status'] == 'Pending']
+    
+    if pending_apps:
+        # Create dataframe for display
+        data = []
+        for app in pending_apps:
+            data.append({
+                "Service Type": app['type'],
+                "Requestor Name": f"{app['first_name']} {app['last_name']}",
+                "Status": app['status'],
+                "Date Submitted": app['date'],
+                "Tracking": app['tracking']
+            })
+        
+        df = pd.DataFrame(data)
+        
+        # Display with action buttons
+        for idx, row in df.iterrows():
+            col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
+            with col1:
+                st.write(f"**{row['Service Type']}**")
+            with col2:
+                st.write(row['Requestor Name'])
+            with col3:
+                status_class = f"status-{row['Status'].lower()}"
+                st.markdown(f"<span class='status-badge {status_class}'>{row['Status']}</span>", unsafe_allow_html=True)
+            with col4:
+                st.write(row['Date Submitted'])
+            with col5:
+                if st.button("Review", key=f"review_{row['Tracking']}"):
+                    st.info(f"Reviewing application: {row['Tracking']}")
+            
+            with st.expander("View Details"):
+                app_details = [a for a in pending_apps if a['tracking'] == row['Tracking']][0]
+                st.json(app_details)
+            
+            st.markdown("---")
+    else:
+        st.info("No pending requests for this department")
+
+def show_staff_validation(department):
+    st.header(f"✅ Document Validation - {department}")
+    
+    # Filters
+    col1, col2 = st.columns(2)
+    with col1:
+        status_filter = st.selectbox("Filter by Status", ["All", "Passed", "Flagged"])
+    with col2:
+        severity_filter = st.selectbox("Filter by Severity", ["All", "High", "Medium", "Low"])
+    
+    # Get department documents
+    dept_docs = [doc for doc in st.session_state.validated_documents if doc['department'] == department]
+    
+    if status_filter != "All":
+        dept_docs = [doc for doc in dept_docs if doc['validation_status'] == status_filter]
+    
+    if severity_filter != "All" and severity_filter in ["High", "Medium", "Low"]:
+        dept_docs = [doc for doc in dept_docs if doc.get('severity') == severity_filter]
+    
+    if dept_docs:
+        for doc in dept_docs:
+            col1, col2, col3, col4 = st.columns([2, 2, 1, 2])
+            with col1:
+                st.write(f"**{doc['document_type']}**")
+                st.caption(f"Tracking: {doc['tracking']}")
+            with col2:
+                st.write(f"Applicant: {doc['applicant']}")
+                st.caption(f"Submitted: {doc['submission_date']}")
+            with col3:
+                if doc['validation_status'] == 'Passed':
+                    st.markdown("<span class='status-badge status-verified'>PASSED</span>", unsafe_allow_html=True)
+                else:
+                    st.markdown("<span class='status-badge status-flagged'>FLAGGED</span>", unsafe_allow_html=True)
+                
+                if doc.get('severity'):
+                    severity_class = f"severity-{doc['severity'].lower()}"
+                    st.markdown(f"<span class='{severity_class}'>{doc['severity']}</span>", unsafe_allow_html=True)
+            with col4:
+                if doc['validation_status'] == 'Flagged':
+                    st.write("Issues:")
+                    for issue in doc['flagged_issues']:
+                        st.markdown(f"- {issue}")
+                else:
+                    st.write("✅ No issues detected")
+            
+            if st.button("View Full Details", key=f"view_doc_{doc['id']}"):
+                st.info(f"Showing details for document {doc['tracking']}")
+            
+            st.markdown("---")
+    else:
+        st.info("No documents found matching the filters")
+
+def show_staff_analytics(department):
+    st.header(f"📈 Analytics & Resource Planning - {department}")
+    
+    # Peak Request Hours
+    with st.expander("📊 Peak Request Hours", expanded=True):
+        st.subheader("Request Volume by Hour (8 AM - 5 PM)")
+        
+        # Create chart data
+        hours = [d['hour'] for d in st.session_state.peak_hours_data]
+        volumes = [d['volume'] for d in st.session_state.peak_hours_data]
+        colors = [d['color'] for d in st.session_state.peak_hours_data]
+        
+        fig = go.Figure(data=[
+            go.Bar(x=hours, y=volumes, marker_color=colors)
+        ])
+        
+        fig.update_layout(
+            title="Peak Request Hours",
+            xaxis_title="Time",
+            yaxis_title="Request Volume",
+            height=400
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Peak level indicators
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown("🟢 **Low** (<10 requests)")
+        with col2:
+            st.markdown("🟡 **Medium** (10-20 requests)")
+        with col3:
+            st.markdown("🔴 **High** (>20 requests)")
+    
+    # Processing Time Forecasts
+    with st.expander("⏱️ Processing Time Forecasts", expanded=True):
+        st.subheader("Service Processing Predictions")
+        
+        # Filter forecasts for department services
+        dept_services = []
+        if department == "Civil Registry":
+            dept_services = ["Birth Certificate", "Marriage Certificate", "Death Certificate"]
+        elif department == "Treasury":
+            dept_services = ["Business Permit", "Tax Payment"]
+        elif department == "Health & Sanitation":
+            dept_services = ["Health Clearance"]
+        elif department == "Admin":
+            dept_services = ["Barangay Clearance", "Police Clearance"]
+        
+        forecast_data = [f for f in st.session_state.processing_forecasts if f['service'] in dept_services]
+        
+        for forecast in forecast_data:
+            col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 1])
+            with col1:
+                st.write(f"**{forecast['service']}**")
+            with col2:
+                st.write(f"Avg: {forecast['avg_time']} days")
+            with col3:
+                st.write(f"Predicted: {forecast['predicted_time']} days")
+            with col4:
+                trend_color = "green" if forecast['trend'] == "↑" else "orange" if forecast['trend'] == "→" else "red"
+                st.markdown(f"<span style='color: {trend_color}; font-size: 20px;'>{forecast['trend']}</span>", unsafe_allow_html=True)
+            with col5:
+                st.progress(forecast['confidence']/100)
+                st.caption(f"{forecast['confidence']}% confidence")
+            
+            st.markdown("---")
+    
+    # Manpower Allocation
+    with st.expander("👥 Manpower Allocation Recommendations", expanded=True):
+        st.subheader("Staffing Recommendations")
+        
+        for rec in st.session_state.manpower_recommendations:
+            col1, col2, col3, col4 = st.columns([2, 1, 1, 2])
+            with col1:
+                st.write(f"**{rec['time_slot']}**")
+            with col2:
+                st.write(f"Current: {rec['current_staff']}")
+            with col3:
+                st.write(f"Recommended: {rec['recommended_staff']}")
+            with col4:
+                st.progress(rec['utilization']/100)
+                st.caption(f"Utilization: {rec['utilization']}%")
+            
+            st.markdown("---")
+
+def show_staff_reports(department):
+    st.header(f"📋 Monthly Reports - {department}")
+    
+    # Period selection
+    col1, col2 = st.columns(2)
+    with col1:
+        report_period = st.selectbox("Select Period", ["Monthly", "Yearly"])
+    with col2:
+        if report_period == "Monthly":
+            selected_month = st.selectbox("Select Month", [r['month'] for r in st.session_state.monthly_reports])
+    
+    # Display report
+    if report_period == "Monthly":
+        report = next((r for r in st.session_state.monthly_reports if r['month'] == selected_month), None)
+        
+        if report:
+            col1, col2, col3, col4, col5 = st.columns(5)
+            with col1:
+                st.metric("Pending", report['pending'])
+            with col2:
+                st.metric("Processing", report['processing'])
+            with col3:
+                st.metric("Completed", report['completed'])
+            with col4:
+                st.metric("Rejected", report['rejected'])
+            with col5:
+                st.metric("Avg Processing Time", f"{report['avg_processing_time']} days")
+            
+            # Chart
+            statuses = ['Pending', 'Processing', 'Completed', 'Rejected']
+            counts = [report['pending'], report['processing'], report['completed'], report['rejected']]
+            
+            fig = px.pie(values=counts, names=statuses, title=f"Request Status Distribution - {selected_month}")
+            st.plotly_chart(fig, use_container_width=True)
+    
+    # Download options
+    st.markdown("---")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📥 Download Report (PDF)", use_container_width=True):
+            st.success("Report downloaded successfully!")
+    with col2:
+        if st.button("🖨️ Print Report", use_container_width=True):
+            st.success("Report sent to printer!")
+
+def show_verify_documents_modal(department):
+    with st.container():
+        st.markdown('<div class="modal-content">', unsafe_allow_html=True)
+        st.subheader("✅ Verify Documents")
+        
+        # Get flagged documents
+        flagged_docs = [doc for doc in st.session_state.validated_documents 
+                       if doc['department'] == department and doc['validation_status'] == 'Flagged']
+        
+        if flagged_docs:
+            # Filter options
+            filter_status = st.selectbox("Filter by Severity", ["All", "High", "Medium", "Low"])
+            
+            filtered_docs = flagged_docs
+            if filter_status != "All":
+                filtered_docs = [doc for doc in flagged_docs if doc.get('severity') == filter_status]
+            
+            for doc in filtered_docs:
+                with st.container():
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.write(f"**{doc['document_type']}** - {doc['applicant']}")
+                        st.caption(f"Tracking: {doc['tracking']}")
+                        st.write("Issues detected:")
+                        for issue in doc['flagged_issues']:
+                            st.markdown(f"- {issue}")
+                    with col2:
+                        severity_class = f"severity-{doc['severity'].lower()}"
+                        st.markdown(f"<span class='{severity_class}'>{doc['severity']}</span>", unsafe_allow_html=True)
+                        if st.button("Mark as Reviewed", key=f"mark_{doc['id']}"):
+                            doc['validation_status'] = 'Passed'
+                            st.success("Document marked as reviewed!")
+                            st.rerun()
+                    
+                    st.markdown("---")
+        else:
+            st.info("No flagged documents to review")
+        
+        if st.button("Close", key="close_verify"):
+            st.session_state.quick_action_modal = None
+            st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
+def show_issue_certificate_modal(department):
+    with st.container():
+        st.markdown('<div class="modal-content">', unsafe_allow_html=True)
+        st.subheader("📄 Issue Certificate")
+        
+        with st.form("issue_certificate_form"):
+            col1, col2 = st.columns(2)
+            with col1:
+                recipient_name = st.text_input("Recipient Name*")
+                document_type = st.selectbox("Document Type*", 
+                    ["Birth Certificate", "Marriage Certificate", "Barangay Clearance", 
+                     "Police Clearance", "Health Clearance", "Business Permit"])
+            with col2:
+                issue_date = st.date_input("Issue Date*", value=datetime.now())
+                notes = st.text_area("Notes")
+            
+            # Generate certificate preview
+            st.subheader("Certificate Preview")
+            st.markdown(f"""
+            <div style="border: 2px solid #1e3c72; padding: 20px; border-radius: 10px;">
+                <h3 style="text-align: center;">Republic of the Philippines</h3>
+                <h4 style="text-align: center;">Province of Surigao del Sur</h4>
+                <h4 style="text-align: center;">Municipality of Cantilan</h4>
+                <h4 style="text-align: center;">{department}</h4>
+                <br>
+                <p>This is to certify that <strong>{recipient_name if recipient_name else '[Recipient Name]'}</strong></p>
+                <p>has been issued <strong>{document_type}</strong> on <strong>{issue_date.strftime('%B %d, %Y')}</strong>.</p>
+                <br>
+                <p style="text-align: right;">_________________________</p>
+                <p style="text-align: right;">{st.session_state.staff_info['name']}</p>
+                <p style="text-align: right;">{st.session_state.staff_info['role']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                submitted = st.form_submit_button("✅ Issue Certificate", use_container_width=True)
+            with col2:
+                download = st.form_submit_button("📥 Download", use_container_width=True)
+            with col3:
+                print_btn = st.form_submit_button("🖨️ Print", use_container_width=True)
+            
+            if submitted:
+                if recipient_name:
+                    st.success(f"Certificate issued successfully to {recipient_name}!")
+                else:
+                    st.error("Please fill in all required fields")
+        
+        if st.button("Close", key="close_issue"):
+            st.session_state.quick_action_modal = None
+            st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
+def show_view_reports_modal(department):
+    with st.container():
+        st.markdown('<div class="modal-content">', unsafe_allow_html=True)
+        st.subheader("📊 Department Reports")
+        
+        # Report type selection
+        report_type = st.radio("Select Report Type", ["Monthly Summary", "Service Performance", "Staff Productivity"], horizontal=True)
+        
+        if report_type == "Monthly Summary":
+            # Display monthly reports
+            df_reports = pd.DataFrame(st.session_state.monthly_reports)
+            st.dataframe(df_reports, use_container_width=True)
+            
+            # Chart
+            fig = px.line(df_reports, x='month', y=['pending', 'processing', 'completed', 'rejected'],
+                         title="Monthly Request Trends")
+            st.plotly_chart(fig, use_container_width=True)
+        
+        elif report_type == "Service Performance":
+            # Service performance metrics
+            services = ["Birth Certificate", "Marriage Certificate", "Barangay Clearance", "Business Permit"]
+            avg_times = [3.2, 4.1, 1.1, 7.5]
+            completion_rates = [95, 92, 98, 88]
+            
+            fig = go.Figure(data=[
+                go.Bar(name='Avg Processing Time (days)', x=services, y=avg_times, yaxis='y'),
+                go.Bar(name='Completion Rate (%)', x=services, y=completion_rates, yaxis='y2')
+            ])
+            
+            fig.update_layout(
+                title="Service Performance Metrics",
+                yaxis=dict(title="Days", side='left'),
+                yaxis2=dict(title="Percentage (%)", side='right', overlaying='y', range=[0, 100])
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        
+        elif report_type == "Staff Productivity":
+            # Mock staff productivity data
+            staff_data = {
+                'Staff Member': ['John Doe', 'Jane Smith', 'Mike Wilson', 'Sarah Brown'],
+                'Requests Processed': [145, 132, 168, 121],
+                'Avg Time (min)': [15, 12, 18, 14],
+                'Accuracy Rate': [98, 97, 95, 99]
+            }
+            
+            df_staff = pd.DataFrame(staff_data)
+            st.dataframe(df_staff, use_container_width=True)
+        
+        # Export options
+        st.markdown("---")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📥 Export to CSV", use_container_width=True):
+                st.success("Report exported successfully!")
+        with col2:
+            if st.button("📧 Email Report", use_container_width=True):
+                st.success("Report sent to your email!")
+        
+        if st.button("Close", key="close_reports"):
+            st.session_state.quick_action_modal = None
+            st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# [Previous LGU and Barangay service functions remain the same]
 def show_lgu_services():
     st.title("Local Government Unit Services")
     
@@ -1115,6 +1992,65 @@ def show_application_form(service_name, office_name=None):
             else:
                 st.error("Please fill in all required fields and agree to terms and conditions")
 
+def show_dashboard():
+    st.title("Dashboard")
+    
+    # Get user-specific applications (filter by user)
+    user_apps = [app for app in st.session_state.applications if app.get('user_email') == st.session_state.username]
+    
+    # Calculate statistics
+    active_count = len([app for app in user_apps if app['status'] in ['Processing', 'Pending']])
+    completed_count = len([app for app in user_apps if app['status'] == 'Approved'])
+    total_count = len(user_apps)
+    
+    # Statistics cards
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown(f"""
+        <div class="dashboard-card" style="text-align:center;">
+            <h3 style="margin:0; color:#666;">Active</h3>
+            <h2 style="margin:0; color:#28a745;">{active_count}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+        <div class="dashboard-card" style="text-align:center;">
+            <h3 style="margin:0; color:#666;">Completed</h3>
+            <h2 style="margin:0; color:#28a745;">{completed_count}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(f"""
+        <div class="dashboard-card" style="text-align:center;">
+            <h3 style="margin:0; color:#666;">Total</h3>
+            <h2 style="margin:0; color:#28a745;">{total_count}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    st.subheader("Recent Applications")
+    
+    # Show recent applications or empty state
+    if user_apps:
+        recent_apps = sorted(user_apps, key=lambda x: x['date'], reverse=True)[:5]
+        for app in recent_apps:
+            status_class = f"status-{app['status'].lower()}"
+            st.markdown(f"""
+            <div class="recent-app">
+                <div style="display:flex; justify-content:space-between;">
+                    <strong>{app['type']}</strong>
+                    <span class="status-badge {status_class}">{app['status']}</span>
+                </div>
+                <div style="color:#666; font-size:12px;">Tracking: {app['tracking']}</div>
+                <div style="color:#666; font-size:12px;">{app['date']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.info("No applications yet. Start by applying for a service from the LGU or Barangay sections.")
+
+# [Admin dashboard functions remain the same]
 def show_admin_dashboard():
     st.title("Admin Dashboard")
     st.markdown("---")
@@ -1386,8 +2322,13 @@ def show_admin_user_management():
         with col1:
             new_name = st.text_input("Full Name")
             new_email = st.text_input("Email")
+            new_password = st.text_input("Password", type="password", value="staff123")
         with col2:
             new_role = st.selectbox("Role", ["Processor", "Verifier", "Admin", "Encoder"])
+            new_department = st.selectbox("Department", 
+                ["Civil Registry", "Treasury", "Health & Sanitation", "Admin",
+                 "Office of the Municipal Mayor", "Municipal Engineering Office",
+                 "Municipal Police Station", "MSWDO (Social Welfare)"])
             new_status = st.selectbox("Status", ["Active", "Inactive"])
         
         if st.button("Add Staff Member", use_container_width=True):
@@ -1397,10 +2338,12 @@ def show_admin_user_management():
                     "id": new_id,
                     "name": new_name,
                     "email": new_email,
+                    "password": hash_password(new_password),
                     "role": new_role,
+                    "department": new_department,
                     "status": new_status
                 })
-                st.success(f"Staff member {new_name} added successfully!")
+                st.success(f"Staff member {new_name} added successfully to {new_department}!")
                 st.rerun()
             else:
                 st.error("Please fill in all fields")
@@ -1408,14 +2351,22 @@ def show_admin_user_management():
     # Existing Staff Members
     st.markdown("### Existing Staff Members")
     
-    for staff in st.session_state.staff_members:
+    # Filter by department
+    dept_filter = st.selectbox("Filter by Department", 
+        ["All"] + list(set([s['department'] for s in st.session_state.staff_members])))
+    
+    filtered_staff = st.session_state.staff_members
+    if dept_filter != "All":
+        filtered_staff = [s for s in st.session_state.staff_members if s['department'] == dept_filter]
+    
+    for staff in filtered_staff:
         with st.container():
             st.markdown(f"""
             <div class="staff-card">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div>
                         <strong>{staff['name']}</strong><br>
-                        <span style="color:#666;">{staff['email']} | {staff['role']}</span>
+                        <span style="color:#666;">{staff['email']} | {staff['role']} | {staff['department']}</span>
                     </div>
                     <span class="status-badge status-{'approved' if staff['status'] == 'Active' else 'pending'}">
                         {staff['status']}
