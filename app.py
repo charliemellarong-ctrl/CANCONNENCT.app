@@ -12,6 +12,7 @@ import base64
 import plotly.express as px
 import plotly.graph_objects as go
 from streamlit_option_menu import option_menu
+from chatbot import add_chatbot_to_page
 
 # Page configuration
 st.set_page_config(
