@@ -1,5 +1,6 @@
 streamlit
 pandas
 numpy
-Pillow
 plotly
+pillow
+streamlit-option-menu
