@@ -89,6 +89,16 @@ def load_css():
         font-size: 12px;
     }
     
+    /* Center application form */
+    .centered-form {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
     /* Container styling */
     .service-container {
         background-color: #f8f9fa;
@@ -304,40 +314,21 @@ def load_css():
         z-index: 1000;
     }
     
-    /* Simplified Chatbot - No floating modal */
-    .chat-container {
-        position: fixed;
-        bottom: 30px;
-        right: 30px;
-        width: 350px;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 5px 25px rgba(0,0,0,0.2);
-        z-index: 999;
-        overflow: hidden;
-    }
-    
-    .chat-header {
-        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-        color: white;
-        padding: 15px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    
+    /* Chat page styling */
     .chat-messages {
-        height: 300px;
+        height: 400px;
         overflow-y: auto;
-        padding: 15px;
+        padding: 20px;
         background: #f8fafc;
+        border-radius: 10px;
+        margin-bottom: 20px;
     }
     
     .message {
-        margin-bottom: 10px;
-        padding: 10px 15px;
-        border-radius: 10px;
-        max-width: 80%;
+        margin-bottom: 15px;
+        padding: 12px 16px;
+        border-radius: 12px;
+        max-width: 70%;
     }
     
     .user-message {
@@ -350,26 +341,23 @@ def load_css():
         background: white;
         color: #333;
         border: 1px solid #e2e8f0;
+        margin-right: auto;
     }
     
-    .chat-input-area {
-        padding: 15px;
+    .quick-reply-btn {
         background: white;
-        border-top: 1px solid #e2e8f0;
-        display: flex;
-        gap: 10px;
+        border: 1px solid #1e3c72;
+        color: #1e3c72;
+        border-radius: 20px;
+        padding: 8px 16px;
+        margin: 5px;
+        cursor: pointer;
+        transition: all 0.3s ease;
     }
     
-    .chat-input {
-        flex: 1;
-        padding: 10px;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        outline: none;
-    }
-    
-    .chat-input:focus {
-        border-color: #1e3c72;
+    .quick-reply-btn:hover {
+        background: #1e3c72;
+        color: white;
     }
     
     /* Typing indicator */
@@ -394,31 +382,6 @@ def load_css():
     @keyframes typing {
         0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
         30% { transform: translateY(-10px); opacity: 1; }
-    }
-    
-    /* Quick replies */
-    .quick-replies {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        padding: 10px;
-        border-top: 1px solid #e2e8f0;
-    }
-    
-    .quick-reply-btn {
-        background: white;
-        border: 1px solid #1e3c72;
-        color: #1e3c72;
-        border-radius: 20px;
-        padding: 6px 12px;
-        font-size: 12px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-    
-    .quick-reply-btn:hover {
-        background: #1e3c72;
-        color: white;
     }
     
     /* Hide default Streamlit elements */
@@ -487,8 +450,6 @@ def init_session_state():
         st.session_state.chat_messages = [
             {"role": "bot", "content": "Hello! I'm your CanConnect virtual assistant. How can I help you today?"}
         ]
-    if 'chat_open' not in st.session_state:
-        st.session_state.chat_open = False
     if 'chat_input_key' not in st.session_state:
         st.session_state.chat_input_key = 0
 
@@ -644,55 +605,53 @@ ADMIN_CREDENTIALS = {
     'admin@cantilan.gov.ph': hash_password('admin123')
 }
 
-# Simplified Chatbot - No floating modal
-def add_chatbot():
-    """Add chatbot for citizens only - no floating modal"""
-    if st.session_state.user_type == 'citizen' and st.session_state.logged_in:
-        st.markdown("---")
-        st.subheader("💬 Need Help?")
-        
-        quick_replies = [
-            "What are the requirements?",
-            "How much is the fee?",
-            "Processing time?",
-            "Payment methods",
-            "Track my application",
-            "Contact info"
-        ]
-        
-        # Display chat history
-        chat_container = st.container()
-        with chat_container:
-            for msg in st.session_state.chat_messages[-5:]:  # Show last 5 messages
-                if msg["role"] == "user":
-                    st.markdown(f'<div style="text-align: right; margin: 5px;"><span style="background: #1e3c72; color: white; padding: 8px 12px; border-radius: 15px; display: inline-block;">{msg["content"]}</span></div>', unsafe_allow_html=True)
-                else:
-                    st.markdown(f'<div style="text-align: left; margin: 5px;"><span style="background: #f0f2f6; color: #333; padding: 8px 12px; border-radius: 15px; display: inline-block;">{msg["content"]}</span></div>', unsafe_allow_html=True)
-        
-        # Quick replies
-        cols = st.columns(3)
-        for idx, reply in enumerate(quick_replies):
-            with cols[idx % 3]:
-                if st.button(reply, key=f"qr_{idx}"):
-                    st.session_state.chat_messages.append({"role": "user", "content": reply})
-                    response = generate_chatbot_response(reply)
-                    st.session_state.chat_messages.append({"role": "bot", "content": response})
-                    st.rerun()
-        
-        # Chat input
-        with st.form(key=f"chat_form_{st.session_state.chat_input_key}"):
-            col1, col2 = st.columns([4, 1])
-            with col1:
-                user_input = st.text_input("Type your message...", key="chat_input", label_visibility="collapsed")
-            with col2:
-                send = st.form_submit_button("Send", use_container_width=True)
-            
-            if send and user_input:
-                st.session_state.chat_messages.append({"role": "user", "content": user_input})
-                response = generate_chatbot_response(user_input)
+# Chatbot page function
+def show_chat_page():
+    st.title("💬 CanConnect Assistant")
+    
+    quick_replies = [
+        "What are the requirements?",
+        "How much is the fee?",
+        "Processing time?",
+        "Payment methods",
+        "Track my application",
+        "Contact info"
+    ]
+    
+    # Display chat history
+    st.markdown('<div class="chat-messages">', unsafe_allow_html=True)
+    for msg in st.session_state.chat_messages:
+        if msg["role"] == "user":
+            st.markdown(f'<div class="message user-message">{msg["content"]}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="message bot-message">{msg["content"]}</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Quick replies
+    st.markdown("### Quick Questions")
+    cols = st.columns(3)
+    for idx, reply in enumerate(quick_replies):
+        with cols[idx % 3]:
+            if st.button(reply, key=f"qr_{idx}"):
+                st.session_state.chat_messages.append({"role": "user", "content": reply})
+                response = generate_chatbot_response(reply)
                 st.session_state.chat_messages.append({"role": "bot", "content": response})
-                st.session_state.chat_input_key += 1
                 st.rerun()
+    
+    # Chat input
+    with st.form(key=f"chat_form_{st.session_state.chat_input_key}"):
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            user_input = st.text_input("Type your message...", key="chat_input", label_visibility="collapsed")
+        with col2:
+            send = st.form_submit_button("Send", use_container_width=True)
+        
+        if send and user_input:
+            st.session_state.chat_messages.append({"role": "user", "content": user_input})
+            response = generate_chatbot_response(user_input)
+            st.session_state.chat_messages.append({"role": "bot", "content": response})
+            st.session_state.chat_input_key += 1
+            st.rerun()
 
 def generate_chatbot_response(user_input):
     """Generate chatbot response based on user input"""
@@ -812,6 +771,9 @@ def main():
                 if st.button("🏘️ Barangay Services", use_container_width=True):
                     st.session_state.page = 'barangay'
                     st.rerun()
+                if st.button("💬 AI Chatbot", use_container_width=True):
+                    st.session_state.page = 'chat'
+                    st.rerun()
             
             st.markdown("---")
             if st.button("🚪 Logout", use_container_width=True):
@@ -840,9 +802,8 @@ def main():
             show_lgu_services()
         elif st.session_state.page == 'barangay':
             show_barangay_services()
-        
-        # Add chatbot only for citizens at the bottom
-        add_chatbot()
+        elif st.session_state.page == 'chat':
+            show_chat_page()
 
 def show_login_page():
     st.title("🏛️ CanConnect")
@@ -1470,149 +1431,155 @@ def show_barangay_services():
                 show_application_form(service['name'], "Barangay Hall")
 
 def show_application_form(service_name, office_name=None):
-    st.markdown("---")
-    if office_name:
-        st.subheader(f"Application Form - {service_name}")
-        st.caption(f"Office: {office_name}")
-    else:
-        st.subheader(f"Application Form - {service_name}")
-    
-    with st.form(key=f"form_{service_name.replace(' ', '_')}"):
+    # Center the form
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown('<div class="centered-form">', unsafe_allow_html=True)
+        
         if office_name:
-            st.info(f"This application will be processed by: **{office_name}**")
+            st.subheader(f"Apply for {service_name}")
+            st.caption(f"Office: {office_name}")
+        else:
+            st.subheader(f"Apply for {service_name}")
         
-        st.write("**Personal Information**")
-        col1, col2 = st.columns(2)
-        with col1:
-            first_name = st.text_input("First Name*")
-        with col2:
-            last_name = st.text_input("Last Name*")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            birth_date = st.date_input("Date of Birth*", min_value=datetime(1900,1,1), max_value=datetime.now())
-        with col2:
-            gender = st.selectbox("Gender*", ["Male", "Female", "Other"])
-        
-        st.write("**Contact Information**")
-        col1, col2 = st.columns(2)
-        with col1:
-            contact_no = st.text_input("Contact Number*")
-        with col2:
-            email = st.text_input("Email Address*", value=st.session_state.username if st.session_state.username else "")
-        
-        st.write("**Address**")
-        col1, col2 = st.columns(2)
-        with col1:
-            barangay = st.selectbox("Barangay*", [
-                "Barangay 1", "Barangay 2", "Barangay 3", "Barangay 4", 
-                "Barangay 5", "Barangay 6", "Barangay 7", "Barangay 8"
-            ])
-        with col2:
-            municipality = st.text_input("Municipality*", value="Cantilan", disabled=True)
-        
-        street = st.text_input("Street/Purok*")
-        
-        st.write("**Application Details**")
-        purpose = ""
-        if "Certificate" in service_name or "Clearance" in service_name:
-            purpose = st.text_area("Purpose of Application*")
-        
-        business_name = ""
-        business_type = ""
-        if service_name in ["Business Permit", "Building Permit"]:
+        with st.form(key=f"form_{service_name.replace(' ', '_')}"):
+            if office_name:
+                st.info(f"This application will be processed by: **{office_name}**")
+            
+            st.write("**Personal Information**")
             col1, col2 = st.columns(2)
             with col1:
-                business_name = st.text_input("Business Name*")
+                first_name = st.text_input("First Name*")
             with col2:
-                business_type = st.selectbox("Business Type*", ["Sole Proprietorship", "Partnership", "Corporation", "Cooperative"])
-        
-        plate_no = ""
-        franchise_type = ""
-        if "Tricycle Franchise" in service_name:
+                last_name = st.text_input("Last Name*")
+            
             col1, col2 = st.columns(2)
             with col1:
-                plate_no = st.text_input("Plate Number*")
+                birth_date = st.date_input("Date of Birth*", min_value=datetime(1900,1,1), max_value=datetime.now())
             with col2:
-                franchise_type = st.selectbox("Franchise Type*", ["New", "Renewal", "Transfer"])
+                gender = st.selectbox("Gender*", ["Male", "Female", "Other"])
+            
+            st.write("**Contact Information**")
+            col1, col2 = st.columns(2)
+            with col1:
+                contact_no = st.text_input("Contact Number*")
+            with col2:
+                email = st.text_input("Email Address*", value=st.session_state.username if st.session_state.username else "")
+            
+            st.write("**Address**")
+            col1, col2 = st.columns(2)
+            with col1:
+                barangay = st.selectbox("Barangay*", [
+                    "Barangay 1", "Barangay 2", "Barangay 3", "Barangay 4", 
+                    "Barangay 5", "Barangay 6", "Barangay 7", "Barangay 8"
+                ])
+            with col2:
+                municipality = st.text_input("Municipality*", value="Cantilan", disabled=True)
+            
+            street = st.text_input("Street/Purok*")
+            
+            st.write("**Application Details**")
+            purpose = ""
+            if "Certificate" in service_name or "Clearance" in service_name:
+                purpose = st.text_area("Purpose of Application*")
+            
+            business_name = ""
+            business_type = ""
+            if service_name in ["Business Permit", "Building Permit"]:
+                col1, col2 = st.columns(2)
+                with col1:
+                    business_name = st.text_input("Business Name*")
+                with col2:
+                    business_type = st.selectbox("Business Type*", ["Sole Proprietorship", "Partnership", "Corporation", "Cooperative"])
+            
+            plate_no = ""
+            franchise_type = ""
+            if "Tricycle Franchise" in service_name:
+                col1, col2 = st.columns(2)
+                with col1:
+                    plate_no = st.text_input("Plate Number*")
+                with col2:
+                    franchise_type = st.selectbox("Franchise Type*", ["New", "Renewal", "Transfer"])
+            
+            st.write("**Required Documents**")
+            uploaded_files = st.file_uploader("Upload supporting documents", 
+                                              accept_multiple_files=True,
+                                              type=['pdf', 'jpg', 'jpeg', 'png'])
+            
+            st.write("**Payment Method**")
+            payment_method = st.radio("Select Payment Method", 
+                                      ["E-Wallet (GCash, Maya)", "Cash (Pay at LGU)", "Online Banking"],
+                                      horizontal=True)
+            
+            agree = st.checkbox("I certify that all information provided is true and correct*")
+            
+            submitted = st.form_submit_button("Submit Application", use_container_width=True)
+            
+            if submitted:
+                if agree and first_name and last_name and contact_no and email:
+                    tracking_no = f"{service_name[:2].upper()}-{datetime.now().strftime('%Y%m%d')}-{random.randint(1000,9999)}"
+                    
+                    new_app = {
+                        "user_email": st.session_state.username,
+                        "type": service_name,
+                        "office": office_name if office_name else "N/A",
+                        "date": datetime.now().strftime("%Y-%m-%d"),
+                        "status": "Pending",
+                        "tracking": tracking_no,
+                        "first_name": first_name,
+                        "last_name": last_name,
+                        "contact_no": contact_no,
+                        "email": email,
+                        "barangay": barangay,
+                        "purpose": purpose if purpose else "N/A",
+                        "payment_method": payment_method,
+                        "payment_status": "Pending"
+                    }
+                    
+                    if business_name:
+                        new_app['business_name'] = business_name
+                    if business_type:
+                        new_app['business_type'] = business_type
+                    if plate_no:
+                        new_app['plate_no'] = plate_no
+                    if franchise_type:
+                        new_app['franchise_type'] = franchise_type
+                    
+                    st.session_state.applications.append(new_app)
+                    
+                    payment_id = f"PAY{random.randint(1000,9999)}"
+                    
+                    fee_text = st.session_state['selected_service']['fee'] if 'selected_service' in st.session_state else "₱150"
+                    try:
+                        if "-" in fee_text:
+                            amount = int(fee_text.split('-')[0].replace('₱', '').strip())
+                        elif "Free" in fee_text:
+                            amount = 0
+                        else:
+                            amount = int(fee_text.replace('₱', '').strip())
+                    except:
+                        amount = 150
+                    
+                    st.session_state.payments.append({
+                        "id": payment_id,
+                        "tracking": tracking_no,
+                        "amount": amount,
+                        "method": payment_method,
+                        "status": "Pending Verification" if "Cash" in payment_method else "Verified",
+                        "date": datetime.now().strftime("%Y-%m-%d")
+                    })
+                    
+                    st.success(f"✅ Application submitted successfully!")
+                    st.info(f"📱 Tracking Number: **{tracking_no}**")
+                    st.info(f"🏢 Processing Office: **{office_name if office_name else 'LGU Office'}**")
+                    st.info("📨 You can track your application in 'My Requests' page.")
+                    
+                    if st.button("Apply for Another Service", key="another_service"):
+                        st.rerun()
+                else:
+                    st.error("Please fill in all required fields and agree to terms and conditions")
         
-        st.write("**Required Documents**")
-        uploaded_files = st.file_uploader("Upload supporting documents", 
-                                          accept_multiple_files=True,
-                                          type=['pdf', 'jpg', 'jpeg', 'png'])
-        
-        st.write("**Payment Method**")
-        payment_method = st.radio("Select Payment Method", 
-                                  ["E-Wallet (GCash, Maya)", "Cash (Pay at LGU)", "Online Banking"],
-                                  horizontal=True)
-        
-        agree = st.checkbox("I certify that all information provided is true and correct*")
-        
-        submitted = st.form_submit_button("Submit Application", use_container_width=True)
-        
-        if submitted:
-            if agree and first_name and last_name and contact_no and email:
-                tracking_no = f"{service_name[:2].upper()}-{datetime.now().strftime('%Y%m%d')}-{random.randint(1000,9999)}"
-                
-                new_app = {
-                    "user_email": st.session_state.username,
-                    "type": service_name,
-                    "office": office_name if office_name else "N/A",
-                    "date": datetime.now().strftime("%Y-%m-%d"),
-                    "status": "Pending",
-                    "tracking": tracking_no,
-                    "first_name": first_name,
-                    "last_name": last_name,
-                    "contact_no": contact_no,
-                    "email": email,
-                    "barangay": barangay,
-                    "purpose": purpose if purpose else "N/A",
-                    "payment_method": payment_method,
-                    "payment_status": "Pending"
-                }
-                
-                if business_name:
-                    new_app['business_name'] = business_name
-                if business_type:
-                    new_app['business_type'] = business_type
-                if plate_no:
-                    new_app['plate_no'] = plate_no
-                if franchise_type:
-                    new_app['franchise_type'] = franchise_type
-                
-                st.session_state.applications.append(new_app)
-                
-                payment_id = f"PAY{random.randint(1000,9999)}"
-                
-                fee_text = st.session_state['selected_service']['fee'] if 'selected_service' in st.session_state else "₱150"
-                try:
-                    if "-" in fee_text:
-                        amount = int(fee_text.split('-')[0].replace('₱', '').strip())
-                    elif "Free" in fee_text:
-                        amount = 0
-                    else:
-                        amount = int(fee_text.replace('₱', '').strip())
-                except:
-                    amount = 150
-                
-                st.session_state.payments.append({
-                    "id": payment_id,
-                    "tracking": tracking_no,
-                    "amount": amount,
-                    "method": payment_method,
-                    "status": "Pending Verification" if "Cash" in payment_method else "Verified",
-                    "date": datetime.now().strftime("%Y-%m-%d")
-                })
-                
-                st.success(f"✅ Application submitted successfully!")
-                st.info(f"📱 Tracking Number: **{tracking_no}**")
-                st.info(f"🏢 Processing Office: **{office_name if office_name else 'LGU Office'}**")
-                st.info("📨 You can track your application in 'My Requests' page.")
-                
-                if st.button("Apply for Another Service", key="another_service"):
-                    st.rerun()
-            else:
-                st.error("Please fill in all required fields and agree to terms and conditions")
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # Staff dashboard functions
 def show_staff_dashboard():
